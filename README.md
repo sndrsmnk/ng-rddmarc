@@ -53,31 +53,30 @@ Store the four 'conf:' lines with correct values in
 configure the database connection. If you want, you can use just
 <code>-N</code> on the commandline, and have the other values filled in from
 <code>.ng-rddmarc.conf</code>, but if <code>.ng-rddmarc.conf</code> also
-specifies <code>$opt_N</code>, it will override the value from the commandline.
+specifies <code>$opt&x5f;N</code>, it will override the value from the commandline.
 
-Other <code>$opt_</code> values can also be set from <code>.ng-rddmarc.conf</code>.
+Other <code>$opt&x5f;</code> values can also be set from <code>.ng-rddmarc.conf</code>.
+For example, setting <code>$opt$x5f;w = 1;</code> will enable -w by default. _Please note
+that specifying all of <code>-U</code>, <code>-P</code>, <code>-n</code> and <code>-H</code>
+on the command line disables loading of <code>.ng-rddmarc.conf</code>_.
 
 Default startup behaviour is to find all files within directories specified on
 the command line to process. Use the <code>-n</code> option to prevent this
-script from scanning for files within directories on startup.
+script from scanning for files within directories on startup. There will be no
+recursion into subdirectories of paths specified.
 
-If one or more file(s) are specified as arguments they are parsed as
+When a Maildir/ structure is specified, and <code>-m</code> is used, by default only the
+<code>new/<code> directory is scanned for files to process. They will be moved to <code>cur/</code>
+after successful processing. If you also want to scan and process all files in <code>cur/<code>
+on startup, you can use the <code>-c</code> option.
+
+All files found in directories or specified on the command line are parsed as
 <code>message/rfc822</code>-formatted 'email files' by default. Use the
 <code>-x</code> option to indicate you're feeding in the actual XML-formatted
 report files.
 
-If one or more directories are specified as argument, it is assumed that every
-normal file within that directory is a valid
-<code>message/rfc822</code>-formatted 'email file', or XML-formatted report
-file when the <code>-x</code> option was used.
 
-Using the <code>-m</code> option enables detection of <code>Maildir</code>
-structures in directories specified. This could be useful for monitoring your
-own <code>Maildir/.dmarc.rua/</code> mailbox. On startup, meaning, every file in
-the directory will be parsed _unless <code>-n</code> is used_ . Directories
-within this directory will not be recursed into.
-
-Database schema:
+## Database schema:
 ```mysql
 CREATE TABLE report (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -122,8 +121,6 @@ CREATE TABLE failure (
   KEY(bouncedomain)
 ) charset=utf8 ENGINE=MyISAM;
 ```
-
-
 
 # Copyrights
 &copy; 2016, GPLv2, Sander Smeenk <github@freshdot.net>
