@@ -1,9 +1,9 @@
 # ng-rddmarc
 
-DMARC aggregate report to DB parser tool.
+DMARC aggregate report to DB parser tool.<br/>
 &copy; 2016, GPLv2, Sander Smeenk, <github@freshdot.net>
 
-This tool will help with automatic parsing of DMARC RUA 'Aggregate Reports' to a MySQL database.
+This tool will help with automatic parsing of DMARC RUA 'Aggregate Reports' to a MySQL database.<br/>
 It can monitor a Maildir, for instance, and process reports that come in on the fly.
 
 
@@ -55,7 +55,9 @@ configure the database connection. If you want, you can use just
 <code>.ng-rddmarc.conf</code>, but if <code>.ng-rddmarc.conf</code> also
 specifies <code>$opt_N</code>, it will override the value from the commandline.
 
-Default startup behaviour is to findall files within directories specified on
+Other <code>$opt_</code> values can also be set from <code>.ng-rddmarc.conf</code>.
+
+Default startup behaviour is to find all files within directories specified on
 the command line to process. Use the <code>-n</code> option to prevent this
 script from scanning for files within directories on startup.
 
