@@ -66,8 +66,8 @@ script from scanning for files within directories on startup. There will be no
 recursion into subdirectories of paths specified.
 
 When a Maildir/ structure is specified, and <code>-m</code> is used, by default only the
-<code>new/<code> directory is scanned for files to process. They will be moved to <code>cur/</code>
-after successful processing. If you also want to scan and process all files in <code>cur/<code>
+<code>new/</code> directory is scanned for files to process. They will be moved to <code>cur/</code>
+after successful processing. If you also want to scan and process all files in <code>cur/</code>
 on startup, you can use the <code>-c</code> option.
 
 All files found in directories or specified on the command line are parsed as
