@@ -56,7 +56,7 @@ configure the database connection. If you want, you can use just
 specifies <code>$opt&#x5f;N</code>, it will override the value from the commandline.
 
 Other <code>$opt&#x5f;</code> values can also be set from <code>.ng-rddmarc.conf</code>.
-For example, setting <code>$opt$#x5f;w = 1;</code> will enable -w by default. _Please note
+For example, setting <code>$opt&#x5f;w = 1;</code> will enable -w by default. _Please note
 that specifying all of <code>-U</code>, <code>-P</code>, <code>-n</code> and <code>-H</code>
 on the command line disables loading of <code>.ng-rddmarc.conf</code>_.
 
