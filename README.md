@@ -18,7 +18,7 @@ OS      | Module
 ------- | -----------------------
 Linux   | Linux::Inotify2
 OSX     | Mac::FSEvents
-BSD*    | Filesys::Notify::KQueue
+BSD     | Filesys::Notify::KQueue
 Windows | Win32::ChangeNofity
 
 
