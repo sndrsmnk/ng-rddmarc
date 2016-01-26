@@ -1,0 +1,513 @@
+#!/usr/bin/perl
+use strict;
+use Getopt::Std; $Getopt::Std::STANDARD_HELP_VERSION = 1;
+use MIME::Parser;
+use MIME::Words qw(:all);
+use XML::Simple;
+use DBI;
+use Socket qw{:addrinfo inet_ntop inet_pton AF_INET6 AF_INET};
+use PerlIO::gzip;
+use Filesys::Notify::Simple;
+use Time::HiRes qw(usleep);
+
+use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
+            $opt_U $opt_P $opt_N $opt_H};
+getopts('hsd:rxwnmcU:P:N:H:');
+
+#starthelp
+# © 2016, GPLv2, Sander Smeenk <ssmeenk@freshdot.net>
+# See attribution and license info in __END__ block.
+#
+# Note: see Filesys::Notify::Simple man page:
+# On Linux install Linux::Inotify2,
+# on OSX install Mac::FSEvents,
+# on BSD install Filesys::Notify::KQueue,
+# on Windows install Win32::ChangeNotify.
+#
+# $ perl script.pl [opts] <filenames ...>
+# $ perl script.pl [opts] <directories ...>
+#
+# Options:
+#     -h       show this text
+#     -s       show MySQL create table statements
+#
+#     -d nn    print debug info, nn = level, -1 = all
+#
+#     -r       replace existing reports
+#     -x       read XML files rather than mail messages
+#
+#     -w       block and monitor for new files in path(s) to process
+#     -n       do not initially scan files in path(s) specified
+#     -m       detect Maildir: process files and monitor in new/ dir,
+#              move completed to cur/ dir.
+#     -c       if path is Maildir, also process cur/ on startup
+#
+#     -U xxx   database user        conf: $opt_U = "username";
+#     -P xxx   database password    conf: $opt_P = "password";
+#     -N xxx   database name        conf: $opt_N = "dbname";
+#     -H xxx   database hostname    conf: $opt_H = "hostname";
+#         The four conf lines can be stored in $HOME/.ng-rddmarc.conf.
+#
+# If a directory is specified as argument, it is assumed that every
+# normal file in that directory is a valid 'message/rfc822'-type
+# file, meaning, every file in the directory will be parsed.
+# There will be no recursion within the directory.
+#endhelp
+
+exit showHelp("help") if $opt_h;
+exit showHelp("sql") if $opt_s;
+
+die "No source(s) specified. See '$0 -h'.\n" if not scalar(@ARGV);
+
+
+# If no database credentials specified, try and load from $conffile
+my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
+if ($opt_U && $opt_P && $opt_N && $opt_H) {
+    dprint("Database config specified on commandline.", 1);
+} else {
+    if (-e $conffile) {
+        open(FD, "<$conffile") or die "Can't read $conffile: $!\n";
+        my $blob = ""; { local $/ = undef; $blob = <FD>; close(FD) }
+        eval $blob;
+        if ($opt_U && $opt_P && $opt_N && $opt_H) {
+            dprint("Database config loaded from $conffile.", 1);
+        } else {
+            die "No correct database config after loading $conffile.\n";
+        }
+    } else {
+        die "No database config in $conffile, nor on commandline.\n";
+    }
+}
+
+
+my ($ftmp, $dtmp) = findFiles(@ARGV);
+my @files = @$ftmp; undef $ftmp;
+my @dirs = @$dtmp; undef $dtmp;
+my $dbh = undef;
+
+
+processFile($_) foreach @files;
+
+
+# Use inotify to process new files in directories specified
+if (@dirs and $opt_w) {
+    dprint("Waiting for new events in [".join(",", @dirs)."]", 0);
+    my $watcher = Filesys::Notify::Simple->new(\@dirs);
+    my $previous = "";
+    while (1) { 
+        $watcher->wait(sub{ 
+            usleep(50000); # event fires fast, grace sleep
+            foreach (@_) {
+                next if $previous eq $_->{path};
+                $previous = $_->{path};
+                processFile($_->{path});
+            }
+        });
+    };
+
+} elsif (not @dirs and $opt_w) {
+    dprint("No directories were specified to watch for activity.", 0);
+
+}
+
+
+dprint("Done.", 0);
+exit 0;
+
+
+####
+####
+####
+
+
+sub processFile {
+    my ($arg) = @_;
+    $arg =~ s#//+#/#g;
+    return if (not -f $arg) or (not -r $arg);
+    dprint("Parsing $arg", 0);
+
+    my $xml = "";
+    if ($opt_x) { # expect XML file(s)
+        open(XML, $arg) or die "Cannot open file $arg: $!\n";
+        $xml .= $_ while <XML>;
+        close XML;
+
+    } else { # expect EML file
+        $xml = parseEML($arg);
+
+    }
+
+    return dprint("'$arg': no content found", 0) if not defined $xml or $xml eq "" or $xml == 1;
+    return dprint("'$arg': no xml found\n======\n$xml\n======\n", 0) if $xml !~ m#<\?xml#i;
+
+    if ($opt_m) { # detect Maildir and move to cur/
+        my ($path) = $arg =~ m#^(.*)/#;
+        if (isMaildir($path)) {
+            my $new_name = $arg;
+            $new_name =~ s#/new/#/cur/#g;
+            rename "$arg", "$new_name" or dprint("Can't rename '$arg' to '$new_name': $!", 0);
+            dprint("[maildir] moved '$arg' to '$new_name'", 5);
+        }
+    }
+
+    dprint("XML is ======\n$xml\n=====", 11);
+
+    $dbh = DBI->connect("DBI:mysql:hostname=$opt_H:database=$opt_N:mysql_auto_reconnect=1", $opt_U, $opt_P)
+        or die "Cannot connect to database: $DBI::errstr\n";
+
+    my $xs = XML::Simple->new();
+    my $ref = $xs->XMLin($xml);
+    my %xml = %{$ref};
+    my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
+    my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
+    my $org = $xml{'report_metadata'}->{'org_name'};
+    my $id = $xml{'report_metadata'}->{'report_id'};
+    my $domain =  $xml{'policy_published'}->{'domain'};
+
+    dprint("  Report from $org (id: $id) for $domain", 2);
+    dprint("    Period: " . scalar(localtime($from)) . " - " . scalar(localtime($to)), 2);
+
+    # see if already stored
+    my ($xorg, $xid, $serial) = $dbh->selectrow_array(qq{SELECT org, reportid, serial FROM report WHERE reportid = ?}, undef, $id);
+    if ($xorg && $opt_r) {
+        dprint("  Replacing serial $serial, report id $xid", 0);
+        $dbh->do(qq{DELETE from rptrecord WHERE serial = ?}, undef, $serial)
+                or die "Cannot delete old records: " . $dbh->errstr;
+    } elsif ($xorg) {
+        dprint("  Already have $xorg\'s report id $xid as serial $serial, skipped", 0);
+        $dbh->disconnect();
+        return;
+    }
+
+    my $sql = qq{REPLACE INTO report (serial, mindate, maxdate, domain, org, reportid)
+                    VALUES (?, FROM_UNIXTIME(?), FROM_UNIXTIME(?), ?, ?, ?)};
+
+    $dbh->do($sql, undef, $serial, $from, $to, $domain, $org, $id) or die "cannot make report" . $dbh->errstr;
+    $serial = $dbh->{'mysql_insertid'} || $dbh->{'insertid'} unless $xorg;
+
+    my $record = $xml{'record'};
+    if (ref $record eq "HASH") {
+        dprint("  Serial $serial, single record", 0);
+        dorow($serial,$record);
+
+    } elsif (ref $record eq "ARRAY") {
+        dprint("  Serial $serial, multi record", 0);
+        foreach my $row (@$record) {
+            dorow($serial,$row);
+        }
+
+    } else {
+        dprint("  Skipped records for serial $serial, report xml did not parse: " . ref($record), 0);
+
+    }
+    $dbh->disconnect();
+}
+
+
+sub parseEML {
+    my ($file) = @_;
+
+    my $parser = new MIME::Parser;
+    $parser->output_dir("/tmp");
+
+    my $ent    = $parser->parse_open($file);
+    my $body   = $ent->bodyhandle;
+    my $zip    = $body;
+    my $mtype  = $ent->mime_type;
+    my $isgzip = 0;
+
+    # If multipart, look through the parts to find a ZIP
+    if ($mtype =~ m#multipart/#i) {
+        $zip = undef;
+        my $npart = $ent->parts;
+        for my $n (0..($npart-1)) {
+            my $part = $ent->parts($n);
+            if ($part->mime_type =~ m#application/gzip#i) {
+                $zip = $part->bodyhandle;
+                $isgzip = 1;
+                last;
+
+            } elsif ($part->mime_type =~ m#application/(?:zip|x-zip-compressed|octet-stream)#i) {
+                $zip = $part->bodyhandle;
+                last;
+            }
+        }
+
+    } elsif(lc($mtype) ne "application/zip") {
+        $ent->purge if $ent;
+        $zip->purge if $zip;
+        return dprint("Don't understand $mtype in '$file'", 0);
+
+    }
+
+    if (not $zip) {
+        $ent->purge if $ent;
+        return dprint("No (g)zip found in '$file'", 0);
+    }
+
+    dprint("Report " . ($isgzip?"gzip":"zip") . " is in " . $zip->path, 2);
+
+    if ($isgzip) {
+        open(XML, "<:gzip", $zip->path) or return dprint("Cannot gunzip $zip->path", 0);
+
+    } else {
+        open(XML,"unzip -p " . $zip->path . " |") or return dprint("Cannot unzip $zip->path", 0);
+
+    }
+    my $ret = "";
+    { local $/ = undef; $ret = <XML>; }
+    close(XML);
+
+    $ent->purge if $ent;
+    $zip->purge if $zip;
+
+    return $ret;
+}
+
+
+sub dorow($$) {
+    my ($serial, $recp) = @_;
+
+    my %r     = %$recp;
+    my $ip    = $r{'row'}->{'source_ip'};
+    my $count = $r{'row'}->{'count'};
+    my $disp  = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+
+    my ($dkim, $dkimresult, $spf, $spfresult, $reason);
+
+    
+    my $rp = $r{'auth_results'}->{'dkim'};
+    if (ref($rp) eq "HASH") {
+        $dkim = $rp->{'domain'};
+        $dkim = undef if ref $dkim eq "HASH";
+        $dkimresult = $rp->{'result'};
+
+    } else { # array, glom sigs together, report first result
+        $dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
+        $dkimresult = $rp->[0]->{'result'};
+    }
+
+
+    $rp = $r{'auth_results'}->{'spf'};
+    if (ref($rp) eq "HASH") {
+        $spf = $rp->{'domain'};
+        $spfresult = $rp->{'result'};
+
+    } else { # array, glom domains together, report first result
+        $spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
+        $spfresult = $rp->[0]->{'result'};
+    }
+
+
+    $rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
+    if (ref($rp) eq "HASH") {
+        $reason = $rp->{'type'};
+    } else {
+        $reason = join '/',map { $_->{'type'} } @$rp;
+    }
+
+
+    dprint("    ip=$ip, count=$count, disp=$disp, r=$reason,", 2);
+    dprint("    dkim=$dkim/$dkimresult, spf=$spf/$spfresult", 2);
+
+
+    # figure out if it's IPv4 or IPv6
+    my ($nip, $iptype, $ipval);
+    if ($nip = inet_pton(AF_INET, $ip)) {
+        $ipval = unpack "N", $nip;
+        $iptype = "ip";
+
+    } elsif ($nip = inet_pton(AF_INET6, $ip)) {
+        $ipval = "X'" . unpack("H*",$nip) . "'";
+        $iptype = "ip6";
+
+    } else {
+        dprint("    ??? mystery ip '$ip'", 0);
+        return;
+
+    }
+    dprint("    $iptype = $ipval", 2);
+
+
+    $dbh->do(qq{
+            INSERT INTO rptrecord
+                (serial, $iptype, rcount, disposition, reason,
+                 dkimdomain, dkimresult, spfdomain, spfresult)
+            VALUES
+                (?, ?, ?, ?, ?,
+                 ?, ?, ?, ?)}, undef, 
+                
+                $serial, $ipval, $count, $disp, $reason,
+                $dkim, $dkimresult, $spf, $spfresult
+        ) or return dprint("Cannot insert record: $DBI::errstr", 0);
+}
+
+
+sub isMaildir {
+    my ($path) = @_;
+    $path =~ s#/+(?:cur|new|tmp)/*$##;
+    return "$path" if (-d "$path/cur/" && -d "$path/new/" && -d "$path/tmp/");
+    return 0;
+}
+
+
+sub findFiles {
+    my (@args) = @_;
+
+    my @dirs = ();
+    my @files = ();
+
+    foreach my $ent (@args) {
+        $ent =~ s#/+$##;
+
+        if (not -r $ent) {
+            dprint("'$ent': $!", 0);
+            next;
+        }
+
+        if (-f $ent) {
+            push @files, $ent;
+            next;
+        }
+         
+        if (-d $ent) {
+            my $maildir_base = isMaildir($ent);
+
+            if ($opt_m && $maildir_base) {
+                dprint("Maildir detected in '$ent'", 3);
+                push @dirs, $maildir_base . '/new/';
+            } else {
+                push @dirs, $ent;
+            }
+
+            next if $opt_n; # don't recurse?
+
+            my @lookpaths = ();
+            if ($opt_m && $maildir_base) {
+                push @lookpaths, $maildir_base . "/new/";
+                push @lookpaths, $maildir_base . "/cur/" if $opt_c;
+            } else {
+                push @lookpaths, $ent;
+            }
+
+            foreach my $path (@lookpaths) {
+                opendir(DIR, $path) or die "'$path': $!";
+                push @files, "$path/" . $_ foreach grep { !/^\./ && -f "$path/$_" } sort readdir DIR;
+                closedir(DIR);
+            }                    
+
+            next;
+        }
+
+    }
+
+    return \@files, \@dirs;
+}
+
+
+sub HELP_MESSAGE() { showHelp(); }
+sub showHelp {
+    my ($type) = @_;
+    $type ||= "help";
+
+    open (FD, $0) or die "Can't read $0: $!\n";
+    my $print = 0;
+    while (<FD>) {
+        last if (/^#end$type/);
+        print if $print;
+        $print = 1 if (/^#start$type/);
+    }
+    close(FD);
+    exit 0;
+}
+
+
+sub dprint {
+    my ($msg, $lvl) = @_;
+    $lvl = 1 if not defined $lvl;
+
+    $msg =~ s#\n+$##g;
+    $msg .= "\n";
+
+    return print $msg if ($lvl == 0);
+    print $msg if $opt_d and (($opt_d == -1) or ($lvl <= $opt_d));
+}
+
+
+__END__
+
+Database schema:
+
+#startsql
+CREATE TABLE report (
+  serial int(10) unsigned NOT NULL AUTO_INCREMENT,
+  mindate timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  maxdate timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  domain varchar(255) NOT NULL,
+  org varchar(255) NOT NULL,
+  reportid varchar(255) NOT NULL,
+  PRIMARY KEY (serial),
+  UNIQUE KEY domain (domain,reportid)
+) charset=utf8 ENGINE=MyISAM;
+
+CREATE TABLE rptrecord (
+  serial int(10) unsigned NOT NULL,
+  ip int(10) unsigned,
+  ip6 binary(16),
+  rcount int(10) unsigned NOT NULL,
+  disposition enum('none','quarantine','reject'),
+  reason varchar(255),
+  dkimdomain varchar(255),
+  dkimresult enum('none','pass','fail','neutral','policy','temperror','permerror'),
+  spfdomain varchar(255),
+  spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
+  KEY serial (serial,ip),
+  KEY serial6 (serial,ip6)
+) charset=utf8 ENGINE=MyISAM;
+
+CREATE TABLE failure (
+  serial int(10) unsigned NOT NULL AUTO_INCREMENT,
+  org varchar(255) NOT NULL, -- reported-domain
+  bouncedomain varchar(255), -- MAIL FROM bouncebox@bouncedomain
+  bouncebox varchar(255),
+  fromdomain varchar(255), -- From: frombox@fromdomain
+  frombox varchar(255),
+  arrival TIMESTAMP,
+  sourceip int unsigned, -- inet_aton(source-ip)
+  sourceip6 BINARY(16), -- inet_6top(source-ip)
+  headers TEXT,
+  PRIMARY KEY(serial),
+  KEY(sourceip),
+  KEY(fromdomain),
+  KEY(bouncedomain)
+) charset=utf8 ENGINE=MyISAM;
+#endsql
+
+
+
+Original license:
+Copyright 2012-2013, Taughannock Networks. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
