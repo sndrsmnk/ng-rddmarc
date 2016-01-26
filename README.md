@@ -73,7 +73,7 @@ file when the <code>-x</code> option was used.
 
 Using the <code>-m</code> option enables detection of <code>Maildir</code>
 structures in directories specified. This could be useful for monitoring your
-own <code>Maildir/.dmarc.rua/<code> mailbox. On startup, meaning, every file in
+own <code>Maildir/.dmarc.rua/</code> mailbox. On startup, meaning, every file in
 the directory will be parsed _unless <code>-n</code> is used_ . Directories
 within this directory will not be recursed into.
 
