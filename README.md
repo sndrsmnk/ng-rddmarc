@@ -22,6 +22,19 @@ OSX     | Mac::FSEvents
 BSD     | Filesys::Notify::KQueue
 Windows | Win32::ChangeNofity
 
+You'll also need the following Perl modules installed:
+
+Perl Module             | Ubuntu / Debian Package
+----------------------- | -----------------------
+Filesys::Notify::Simple | libfilesys-notify-simple-perl
+MIME::Parser            | libmime-tools-perl
+PerlIO::gzip            | libperlio-gzip-perl
+Getopt::Std             | perl-modules
+MIME::Words             | libmime-tools-perl
+XML::Simple             | libxml-simple-perl
+DBD::mysql              | libdbd-mysql-perl
+DBI                     | libdbi-perl
+
 
 # Invocation
 ```
@@ -179,8 +192,9 @@ $ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/new
 $ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/cur
 $ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/
 ```
-All of these do the same, they scan the messages in new/, since
-<code>-m</code> was used and this was in fact a Maildir/-structure.
+All of these do the same, they scan the messages in <code>new/</code>
+and move them to <code>cur/</code> since <code>-m</code> was used and
+this was in fact a Maildir/-structure.
 
 ```shell
 $ ng-rddmarc -w -m /home/user/Maildir/.site.dmarc-rua/
@@ -193,14 +207,14 @@ You could run this from init/upstart/systemd as a 'service'.
 ```shell
 $ ng-rddmarc -r -x ./report.xml
 ```
-This processes the <code>./report.xml</code> file as (<code>-x</code>)XML,
-replacing records in the database if any exists, and quits.
+This processes the <code>./report.xml</code> file as XML, replacing
+records in the database if any exists, and quits.
 
 ```shell
 $ ng-rddmarc -x /opt/dump/xmls/
 ```
-Processes all files in path as XML, skips reports that are already in
-the database, and quits.
+Processes all files in <code>/opt/dump/xmls/</code> as XML, skips
+reports that are already in the database, and quits.
 
 ```shell
 $ ng-rddmarc -w /opt/dir ./messagefile.eml
@@ -215,8 +229,8 @@ indefinitely.
 
 # Copyrights
 &copy; 2016, GPLv2, Sander Smeenk <github@freshdot.net><br/>
-Some parts of this script are literal copies of, or are based on,
-work by Taughannock Networks, licensed as follows:
+Some parts of this script are literal copies of, or are roughly based
+on, work by Taughannock Networks, licensed as follows:
 
 > Copyright 2012-2013, Taughannock Networks. All rights reserved.
 > 
