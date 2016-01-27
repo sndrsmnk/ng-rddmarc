@@ -66,35 +66,44 @@ Options:
 See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
 config. Place it in <code>$HOME/.ng-rddmarc.conf</code> to configure
 the database connection. If not all database options are specified on
-the command line, the script will look for this file and 'merge' that
+the command line, the script will look for this file and merge that
 with the command line specified values. This means, for example, you
 could use just <code>-N</code> on the commandline, and have the other
-values filled in from <code>.ng-rddmarc.conf</code>. <strong>Please
-note:</strong> if <code>.ng-rddmarc.conf</code> also specifies
-<code>$opt&#x5f;N</code>, it will override the value from the
-commandline.
+values filled in from <code>.ng-rddmarc.conf</code>. 
 
 Other <code>$opt&#x5f;</code> values can also be set from
 <code>.ng-rddmarc.conf</code>. For example, setting <code>$opt&#x5f;w =
-1;</code> will enable -w by default. <strong>Please note:</strong>
-specifying all of <code>-U</code>, <code>-P</code>, <code>-N</code> and
-<code>-H</code> on the command line disables loading of
-<code>.ng-rddmarc.conf</code>.
+1;</code> will enable -w by default.
 
-Default startup behaviour is to find all files within directories
-specified on the command line to process. There will be no recursion
-into subdirectories of paths specified. Use the <code>-n</code> option
-to prevent this script from scanning for files within directories on
-startup.
+<strong>Please note:</strong>
+- specifying all of <code>-U</code>, <code>-P</code>, <code>-N</code>
+and <code>-H</code> on the command line disables loading of
+<code>.ng-rddmarc.conf</code>.
+- if <code>.ng-rddmarc.conf</code> also specifies <code>$opt&#x5f;N</code>,
+it will override the <code>-N</code> value specified on the commandline.
+
+Default startup behaviour is to process all files specified on the
+command line and those found within directories specified on the
+command line. There will be no recursion into subdirectories.
+Use the <code>-n</code> option to prevent this script from scanning for
+files within directories on startup. It will then only process files
+explicitly specified on the command line.
 
 When a Maildir/ structure is specified, and <code>-m</code> is used, by
 default only the <code>new/</code> directory is scanned for files to
 process. They will be moved to <code>cur/</code> after successful
 processing. If you also want to scan and process all files in
-<code>cur/</code> on startup too, you can use the <code>-c</code>
+<code>cur/</code> on startup, you can use the <code>-c</code>
 option. Using <code>-w</code> with <code>-m</code> will cause the
 <code>new/</code> directory to be monitored for events, even if you
 specified the parent directory on the commandline.
+
+Use the <code>-w</code> flag in combination with at least one directory
+on the command line to enable 'waiting for new events' in said
+directory. You could run <code>ng-rddmarc</code> as a daemon and process
+messages automatically as it 'watches' your (<code>-m</code>)Maildir/ for
+new files to process and move to <code>cur/</code> (marking it 'Old
+Mail' in your mail client).
 
 Other non-Maildir/ directories may be mixed with Maildir/ type
 directories and will be processed and watched as normal directories.
@@ -104,15 +113,8 @@ parsed as <code>message/rfc822</code>-formatted 'email files' by
 default. Use the <code>-x</code> option to indicate you're feeding in
 the actual XML-formatted report files.
 
-Use the <code>-w</code> flag in combination with at least one directory
-on the command line to enable 'waiting for new events' in said
-directory. You could run <code>ng-rddmarc</code> as a daemon and process
-messages automatically as it 'watches' your (<code>-m</code>)Maildir for
-new files to process and move to <code>cur/</code> (marking it 'Old
-Mail' in your mail client).
-
-The <code>-d</code> flag enables debugging. There is no real logic to
-the debug levels at this moment. A value of <code>10</code> shows
+The <code>-d</code> flag enables verbose output. There is no real logic
+to the verbose levels at this moment. A value of <code>10</code> shows
 everything but dumps of the parsed XML-bodies and is most useful if
 something is going awry.
 
@@ -221,8 +223,8 @@ $ ng-rddmarc -w /opt/dir ./messagefile.eml
 ```
 Processes all files in <code>/opt/dir</code> <i>and</i>
 <code>./messagefile.eml</code> as default <code>message/rfc822</code>
-formatted files, after this it will wait for new files in /opt/dir
-indefinitely.
+formatted files, after this it will wait for new files in
+<code>/opt/dir</code> indefinitely.
 
 ... etc.
 
