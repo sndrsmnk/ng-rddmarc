@@ -78,9 +78,9 @@ default only the <code>new/</code> directory is scanned for files to
 process. They will be moved to <code>cur/</code> after successful
 processing. If you also want to scan and process all files in
 <code>cur/</code> on startup too, you can use the <code>-c</code>
-option. Using <code>-w</code> with <code>-m</code> will cause the new/
-directory to be monitored for events, even if you specified the parent
-directory on the commandline.
+option. Using <code>-w</code> with <code>-m</code> will cause the
+<code>new/</code> directory to be monitored for events, even if you
+specified the parent directory on the commandline.
 
 Other non-Maildir/ directories may be mixed with Maildir/ type
 directories and will be processed and watched as normal directories.
@@ -94,8 +94,8 @@ Use the <code>-w</code> flag in combination with at least one directory
 on the command line to enable 'waiting for new events' in said
 directory. You could run <code>ng-rddmarc</code> as a daemon and process
 messages automatically as it 'watches' your (<code>-m</code>)Maildir for
-new files to process and move to cur/ (marking it 'Old Mail' in your
-mail client).
+new files to process and move to <code>cur/</code> (marking it 'Old
+Mail' in your mail client).
 
 The <code>-d</code> flag enables debugging. There is no real logic to
 the debug levels at this moment. A value of <code>10</code> shows
@@ -107,10 +107,9 @@ something is going awry.
 
 This script was developed with a MySQL database as backend. But it uses
 Perl DBI and it should thus be trivial to change to a different database
-backend.
-
-The MySQL create statements can be obtained by running <code>ng-rddmarc
--s</code>. See this simplistic example on how to create the database:
+backend. The MySQL create statements can be obtained by running
+<code>ng-rddmarc -s</code>. See this simplistic example on how to create
+the database:
 
 ```shell
 $ ssh root@databaseserver
@@ -171,31 +170,32 @@ CREATE TABLE failure (
 
 
 # Copyrights
-&copy; 2016, GPLv2, Sander Smeenk <github@freshdot.net>
-Some parts of this script are literal copies of, or are based on, work by:
+&copy; 2016, GPLv2, Sander Smeenk <github@freshdot.net><br/>
+Some parts of this script are literal copies of, or are based on,
+work by Taughannock Networks, licensed as follows:
 
-Copyright 2012-2013, Taughannock Networks. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-
-Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-
-Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
-WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
+> Copyright 2012-2013, Taughannock Networks. All rights reserved.
+> 
+> Redistribution and use in source and binary forms, with or without
+> modification, are permitted provided that the following conditions
+> are met:
+> 
+> Redistributions of source code must retain the above copyright
+> notice, this list of conditions and the following disclaimer.
+> 
+> Redistributions in binary form must reproduce the above copyright
+> notice, this list of conditions and the following disclaimer in the
+> documentation and/or other materials provided with the distribution.
+> 
+> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+> "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+> LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+> A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+> HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+> INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+> BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+> OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+> AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+> LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+> WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+> POSSIBILITY OF SUCH DAMAGE.
