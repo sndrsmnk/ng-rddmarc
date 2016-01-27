@@ -1,7 +1,5 @@
 # ng-rddmarc
 
-[TOC]
-
 
 DMARC aggregate report to DB parser tool.<br/>
 &copy; 2016, GPLv2, Sander Smeenk, <github@freshdot.net>
