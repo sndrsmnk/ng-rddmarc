@@ -8,11 +8,11 @@ It can monitor a Maildir, for instance, and process reports that come in on the 
 
 
 ## Notes
-This script can monitor a directory for changes to files. It does this by
-utilising the <code>Filesys::Notify::Simple</code> Perl module. This module
-will, by itself, monitor a directory by performing directory scans
-periodically. You can get more efficient monitor methods by installing the
-matching implementation for your OS:
+This script can monitor a directory for changes to files. It does this
+by utilising the <code>Filesys::Notify::Simple</code> Perl module. This
+module will, by itself, monitor a directory by performing directory
+scans periodically. You can get more efficient monitor methods by
+installing the matching implementation for your OS:
 
 OS      | Module
 ------- | -----------------------
@@ -47,36 +47,78 @@ Options:
     -H xxx   database hostname    conf: $opt_H = "hostname";
 ```
 
+
 ## Consideration
-Store the four 'conf:' lines with correct values in
-<code>.ng-rddmarc.conf</code> and place it in your <code>$HOME</code> to
-configure the database connection. If you want, you can use just
-<code>-N</code> on the commandline, and have the other values filled in from
-<code>.ng-rddmarc.conf</code>, but if <code>.ng-rddmarc.conf</code> also
-specifies <code>$opt&#x5f;N</code>, it will override the value from the commandline.
+See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
+config. Place it in <code>$HOME/.ng-rddmarc.conf</code> to configure
+the database connection. If not all database options are specified on
+the command line, the script will look for this file and 'merge' that
+with the command line specified values. This means, for example, you
+could use just <code>-N</code> on the commandline, and have the other
+values filled in from <code>.ng-rddmarc.conf</code>. <strong>Please
+note:</strong> if <code>.ng-rddmarc.conf</code> also specifies
+<code>$opt&#x5f;N</code>, it will override the value from the
+commandline.
 
-Other <code>$opt&#x5f;</code> values can also be set from <code>.ng-rddmarc.conf</code>.
-For example, setting <code>$opt&#x5f;w = 1;</code> will enable -w by default. _Please note
-that specifying all of <code>-U</code>, <code>-P</code>, <code>-n</code> and <code>-H</code>
-on the command line disables loading of <code>.ng-rddmarc.conf</code>_.
+Other <code>$opt&#x5f;</code> values can also be set from
+<code>.ng-rddmarc.conf</code>. For example, setting <code>$opt&#x5f;w =
+1;</code> will enable -w by default. <strong>Please note:</strong>
+specifying all of <code>-U</code>, <code>-P</code>, <code>-n</code> and
+<code>-H</code> on the command line disables loading of
+<code>.ng-rddmarc.conf</code>.
 
-Default startup behaviour is to find all files within directories specified on
-the command line to process. Use the <code>-n</code> option to prevent this
-script from scanning for files within directories on startup. There will be no
-recursion into subdirectories of paths specified.
+Default startup behaviour is to find all files within directories
+specified on the command line to process. There will be no recursion
+into subdirectories of paths specified. Use the <code>-n</code> option
+to prevent this script from scanning for files within directories on
+startup.
 
-When a Maildir/ structure is specified, and <code>-m</code> is used, by default only the
-<code>new/</code> directory is scanned for files to process. They will be moved to <code>cur/</code>
-after successful processing. If you also want to scan and process all files in <code>cur/</code>
-on startup, you can use the <code>-c</code> option.
+When a Maildir/ structure is specified, and <code>-m</code> is used, by
+default only the <code>new/</code> directory is scanned for files to
+process. They will be moved to <code>cur/</code> after successful
+processing. If you also want to scan and process all files in
+<code>cur/</code> on startup too, you can use the <code>-c</code>
+option.
 
-All files found in directories or specified on the command line are parsed as
-<code>message/rfc822</code>-formatted 'email files' by default. Use the
-<code>-x</code> option to indicate you're feeding in the actual XML-formatted
-report files.
+All files found in directories or specified on the command line are
+parsed as <code>message/rfc822</code>-formatted 'email files' by
+default. Use the <code>-x</code> option to indicate you're feeding in
+the actual XML-formatted report files.
+
+Use the <code>-w</code> flag in combination with at least one directory
+on the command line to enable 'waiting for new events' in said
+directory. You could run <code>ng-rddmarc</code> as a daemon and process
+messages automatically as it 'watches' your (<code>-m</code>)Maildir for
+new files to process and move to cur/ (marking it 'Old Mail' in your
+mail client).
+
+The <code>-d</code> flag enables debugging. There is no real logic to
+the debug levels at this moment. A value of <code>10</code> shows
+everything but dumps of the parsed XML-bodies and is most useful if
+something is going awry.
 
 
-## Database schema:
+## Database
+
+This script was developed with a MySQL database as backend. But it uses
+Perl DBI and it should thus be trivial to change to a different database
+backend.
+
+The MySQL create statements can be obtained by running <code>ng-rddmarc
+-s</code>. See this simplistic example on how to create the database:
+
+```shell
+$ ssh root@databaseserver
+$ mysql
+mysql> CREATE DATABASE dmarc DEFAULT CHARACTER SET utf8;
+mysql> GRANT ALL ON dmarc.* TO 'dmarc'@'%' IDENTIFIED BY 'yourplainpassword';
+mysql> exit
+Bye
+$ ng-rddmarc -s | mysql -u dmarc -p -h databaseserver dmarc
+```
+
+
+### Database schema:
 ```mysql
 CREATE TABLE report (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -121,6 +163,7 @@ CREATE TABLE failure (
   KEY(bouncedomain)
 ) charset=utf8 ENGINE=MyISAM;
 ```
+
 
 # Copyrights
 &copy; 2016, GPLv2, Sander Smeenk <github@freshdot.net>
