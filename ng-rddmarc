@@ -10,6 +10,7 @@ use PerlIO::gzip;
 use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
 
+
 use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
             $opt_U $opt_P $opt_N $opt_H};
 getopts('hsd:rxwnmcU:P:N:H:');
@@ -17,14 +18,13 @@ getopts('hsd:rxwnmcU:P:N:H:');
 
 exit showHelp("help") if $opt_h;
 exit showHelp("sql") if $opt_s;
-
 die "No source(s) specified. See '$0 -h'.\n" if not scalar(@ARGV);
 
 
-# If no database credentials specified, try and load from $conffile
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
 if ($opt_U && $opt_P && $opt_N && $opt_H) {
     dprint("Database config specified on commandline.", 1);
+
 } else {
     if (-e $conffile) {
         open(FD, "<$conffile") or die "Can't read $conffile: $!\n";
@@ -32,12 +32,17 @@ if ($opt_U && $opt_P && $opt_N && $opt_H) {
         eval $blob;
         if ($opt_U && $opt_P && $opt_N && $opt_H) {
             dprint("Database config loaded from $conffile.", 1);
+
         } else {
             die "No correct database config after loading $conffile.\n";
+
         }
+
     } else {
         die "No database config in $conffile, nor on commandline.\n";
+
     }
+
 }
 
 
@@ -50,7 +55,6 @@ my $dbh = undef;
 processFile($_) foreach @files;
 
 
-# Use inotify to process new files in directories specified
 if (@dirs and $opt_w) {
     dprint("Waiting for new events in [".join(",", @dirs)."]", 0);
     my $watcher = Filesys::Notify::Simple->new(\@dirs);
@@ -62,8 +66,11 @@ if (@dirs and $opt_w) {
                 next if $previous eq $_->{path};
                 $previous = $_->{path};
                 processFile($_->{path});
+
             }
+
         });
+
     };
 
 } elsif (not @dirs and $opt_w) {
@@ -108,7 +115,9 @@ sub processFile {
             $new_name =~ s#/new/#/cur/#g;
             rename "$arg", "$new_name" or dprint("Can't rename '$arg' to '$new_name': $!", 0);
             dprint("[maildir] moved '$arg' to '$new_name'", 5);
+
         }
+
     }
 
     dprint("XML is ======\n$xml\n=====", 11);
@@ -134,10 +143,12 @@ sub processFile {
         dprint("  Replacing serial $serial, report id $xid", 0);
         $dbh->do(qq{DELETE from rptrecord WHERE serial = ?}, undef, $serial)
                 or die "Cannot delete old records: " . $dbh->errstr;
+
     } elsif ($xorg) {
         dprint("  Already have $xorg\'s report id $xid as serial $serial, skipped", 0);
         $dbh->disconnect();
         return;
+
     }
 
     my $sql = qq{REPLACE INTO report (serial, mindate, maxdate, domain, org, reportid)
@@ -155,13 +166,16 @@ sub processFile {
         dprint("  Serial $serial, multi record", 0);
         foreach my $row (@$record) {
             dorow($serial,$row);
+
         }
 
     } else {
         dprint("  Skipped records for serial $serial, report xml did not parse: " . ref($record), 0);
 
     }
+
     $dbh->disconnect();
+
 }
 
 
@@ -191,7 +205,9 @@ sub parseEML {
             } elsif ($part->mime_type =~ m#application/(?:zip|x-zip-compressed|octet-stream)#i) {
                 $zip = $part->bodyhandle;
                 last;
+
             }
+
         }
 
     } elsif(lc($mtype) ne "application/zip") {
@@ -215,6 +231,7 @@ sub parseEML {
         open(XML,"unzip -p " . $zip->path . " |") or return dprint("Cannot unzip $zip->path", 0);
 
     }
+
     my $ret = "";
     { local $/ = undef; $ret = <XML>; }
     close(XML);
@@ -246,6 +263,7 @@ sub dorow($$) {
     } else { # array, glom sigs together, report first result
         $dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
         $dkimresult = $rp->[0]->{'result'};
+
     }
 
 
@@ -257,14 +275,17 @@ sub dorow($$) {
     } else { # array, glom domains together, report first result
         $spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
         $spfresult = $rp->[0]->{'result'};
+
     }
 
 
     $rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
     if (ref($rp) eq "HASH") {
         $reason = $rp->{'type'};
+
     } else {
         $reason = join '/',map { $_->{'type'} } @$rp;
+
     }
 
 
@@ -287,8 +308,8 @@ sub dorow($$) {
         return;
 
     }
-    dprint("    $iptype = $ipval", 2);
 
+    dprint("    $iptype = $ipval", 2);
 
     $dbh->do(qq{
             INSERT INTO rptrecord
@@ -324,11 +345,13 @@ sub findFiles {
         if (not -r $ent) {
             dprint("'$ent': $!", 0);
             next;
+
         }
 
         if (-f $ent) {
             push @files, $ent;
             next;
+
         }
          
         if (-d $ent) {
@@ -337,8 +360,10 @@ sub findFiles {
             if ($opt_m && $maildir_base) {
                 dprint("Maildir detected in '$ent'", 3);
                 push @dirs, $maildir_base . '/new/';
+
             } else {
                 push @dirs, $ent;
+
             }
 
             next if $opt_n; # don't recurse?
@@ -347,8 +372,10 @@ sub findFiles {
             if ($opt_m && $maildir_base) {
                 push @lookpaths, $maildir_base . "/new/";
                 push @lookpaths, $maildir_base . "/cur/" if $opt_c;
+
             } else {
                 push @lookpaths, $ent;
+
             }
 
             foreach my $path (@lookpaths) {
@@ -358,6 +385,7 @@ sub findFiles {
             }                    
 
             next;
+
         }
 
     }
@@ -406,8 +434,8 @@ on OSX install Mac::FSEvents,
 on BSD install Filesys::Notify::KQueue,
 on Windows install Win32::ChangeNotify.
 
-$ perl script.pl [opts] <filenames ...>
-$ perl script.pl [opts] <directories ...>
+$ ng-rddmarc [opts] <filenames ...>
+$ ng-rddmarc [opts] <directories ...>
 
 Options:
     -h       show this text
