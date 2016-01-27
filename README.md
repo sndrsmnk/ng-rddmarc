@@ -7,7 +7,7 @@ This tool will help with automatic parsing of DMARC RUA 'Aggregate Reports' to a
 It can monitor a Maildir, for instance, and process reports that come in on the fly.
 
 
-## Notes
+# Notes
 This script can monitor a directory for changes to files. It does this
 by utilising the <code>Filesys::Notify::Simple</code> Perl module. This
 module will, by itself, monitor a directory by performing directory
@@ -22,7 +22,7 @@ BSD     | Filesys::Notify::KQueue
 Windows | Win32::ChangeNofity
 
 
-## Invocation
+# Invocation
 ```
 perl script.pl [opts] <filenames ...>
 perl script.pl [opts] <directories ...>
@@ -48,7 +48,7 @@ Options:
 ```
 
 
-## Consideration
+# Consideration
 See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
 config. Place it in <code>$HOME/.ng-rddmarc.conf</code> to configure
 the database connection. If not all database options are specified on
@@ -103,7 +103,7 @@ everything but dumps of the parsed XML-bodies and is most useful if
 something is going awry.
 
 
-## Database
+# Database
 
 This script was developed with a MySQL database as backend. But it uses
 Perl DBI and it should thus be trivial to change to a different database
@@ -122,7 +122,7 @@ $ ng-rddmarc -s | mysql -u dmarc -p -h databaseserver dmarc
 ```
 
 
-### Database schema:
+## Database schema:
 ```mysql
 CREATE TABLE report (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -167,6 +167,49 @@ CREATE TABLE failure (
   KEY(bouncedomain)
 ) charset=utf8 ENGINE=MyISAM;
 ```
+
+## Examples
+We all love examples.
+
+Considering a valid <code>$HOME/.ng-rddmarc.conf</code> exists...
+
+```shell
+$ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/new
+$ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/cur
+$ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/
+```
+All of these do the same, they scan the messages in new/, since
+<code>-m</code> was used and this was in fact a Maildir/-structure.
+
+```shell
+$ ng-rddmarc -w -m /home/user/Maildir/.site.dmarc-rua/
+```
+This will process all files in <code>new/</code> and move them to
+<code>cur/</code> when finished. It will then wait for new files to
+appear in the <code>new/</code> directory and process them, indefinitely.
+You could run this from init/upstart/systemd as a 'service'.
+
+```shell
+$ ng-rddmarc -r -x ./report.xml
+```
+This processes the <code>./report.xml</code> file as (<code>-x</code>)XML,
+replace records in the database if any exists, and quit.
+
+```shell
+$ ng-rddmarc -x /opt/dump/xmls/
+```
+Processes all files in path as XML, skips reports that are already in
+the database, and quits.
+
+```shell
+$ ng-rddmarc -w /opt/dir ./messagefile.eml
+```
+Processes all files in <code>/opt/dir</code> <i>and</i>
+<code>./messagefile.eml</code> as default <code>message/rfc822</code>
+formatted files, after this it will wait for new files in /opt/dir
+indefinitely.
+
+... etc.
 
 
 # Copyrights
