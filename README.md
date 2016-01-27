@@ -63,7 +63,7 @@ commandline.
 Other <code>$opt&#x5f;</code> values can also be set from
 <code>.ng-rddmarc.conf</code>. For example, setting <code>$opt&#x5f;w =
 1;</code> will enable -w by default. <strong>Please note:</strong>
-specifying all of <code>-U</code>, <code>-P</code>, <code>-n</code> and
+specifying all of <code>-U</code>, <code>-P</code>, <code>-N</code> and
 <code>-H</code> on the command line disables loading of
 <code>.ng-rddmarc.conf</code>.
 
@@ -78,7 +78,12 @@ default only the <code>new/</code> directory is scanned for files to
 process. They will be moved to <code>cur/</code> after successful
 processing. If you also want to scan and process all files in
 <code>cur/</code> on startup too, you can use the <code>-c</code>
-option.
+option. Using <code>-w</code> with <code>-m</code> will cause the new/
+directory to be monitored for events, even if you specified the parent
+directory on the commandline.
+
+Other non-Maildir/ directories may be mixed with Maildir/ type
+directories and will be processed and watched as normal directories.
 
 All files found in directories or specified on the command line are
 parsed as <code>message/rfc822</code>-formatted 'email files' by
