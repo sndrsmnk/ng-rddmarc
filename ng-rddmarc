@@ -14,45 +14,6 @@ use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
             $opt_U $opt_P $opt_N $opt_H};
 getopts('hsd:rxwnmcU:P:N:H:');
 
-#starthelp
-# © 2016, GPLv2, Sander Smeenk <ssmeenk@freshdot.net>
-# See attribution and license info in __END__ block.
-#
-# Note: see Filesys::Notify::Simple man page:
-# On Linux install Linux::Inotify2,
-# on OSX install Mac::FSEvents,
-# on BSD install Filesys::Notify::KQueue,
-# on Windows install Win32::ChangeNotify.
-#
-# $ perl script.pl [opts] <filenames ...>
-# $ perl script.pl [opts] <directories ...>
-#
-# Options:
-#     -h       show this text
-#     -s       show MySQL create table statements
-#
-#     -d nn    print debug info, nn = level, -1 = all
-#
-#     -r       replace existing reports
-#     -x       read XML files rather than mail messages
-#
-#     -w       block and monitor for new files in path(s) to process
-#     -n       do not initially scan files in path(s) specified
-#     -m       detect Maildir: process files and monitor in new/ dir,
-#              move completed to cur/ dir.
-#     -c       if path is Maildir, also process cur/ on startup
-#
-#     -U xxx   database user        conf: $opt_U = "username";
-#     -P xxx   database password    conf: $opt_P = "password";
-#     -N xxx   database name        conf: $opt_N = "dbname";
-#     -H xxx   database hostname    conf: $opt_H = "hostname";
-#         The four conf lines can be stored in $HOME/.ng-rddmarc.conf.
-#
-# If a directory is specified as argument, it is assumed that every
-# normal file in that directory is a valid 'message/rfc822'-type
-# file, meaning, every file in the directory will be parsed.
-# There will be no recursion within the directory.
-#endhelp
 
 exit showHelp("help") if $opt_h;
 exit showHelp("sql") if $opt_s;
@@ -435,7 +396,47 @@ sub dprint {
 
 
 __END__
+#starthelp
+© 2016, GPLv2, Sander Smeenk <ssmeenk@freshdot.net>
+See attribution and license info in __END__ block.
 
+Note: see Filesys::Notify::Simple man page:
+On Linux install Linux::Inotify2,
+on OSX install Mac::FSEvents,
+on BSD install Filesys::Notify::KQueue,
+on Windows install Win32::ChangeNotify.
+
+$ perl script.pl [opts] <filenames ...>
+$ perl script.pl [opts] <directories ...>
+
+Options:
+    -h       show this text
+    -s       show MySQL create table statements
+
+    -d nn    print debug info, nn = level, -1 = all
+
+    -r       replace existing reports
+    -x       read XML files rather than mail messages
+
+    -w       block and monitor for new files in path(s) to process
+    -n       do not initially scan files in path(s) specified
+    -m       detect Maildir: process files and monitor in new/ dir,
+             move completed to cur/ dir.
+    -c       if path is Maildir, also process cur/ on startup
+
+    -U xxx   database user        conf: $opt_U = "username";
+    -P xxx   database password    conf: $opt_P = "password";
+    -N xxx   database name        conf: $opt_N = "dbname";
+    -H xxx   database hostname    conf: $opt_H = "hostname";
+        The four conf lines can be stored in $HOME/.ng-rddmarc.conf.
+
+If a directory is specified as argument, it is assumed that every
+normal file in that directory is a valid 'message/rfc822'-type
+file, meaning, every file in the directory will be parsed.
+There will be no recursion within the directory.
+#endhelp
+
+ 
 Database schema:
 
 #startsql
