@@ -184,7 +184,7 @@ CREATE TABLE failure (
 ) charset=utf8 ENGINE=MyISAM;
 ```
 
-## Examples
+# Examples
 We all love examples.
 
 Considering a valid <code>$HOME/.ng-rddmarc.conf</code> exists...
