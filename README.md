@@ -1,5 +1,8 @@
 # ng-rddmarc
 
+[TOC]
+
+
 DMARC aggregate report to DB parser tool.<br/>
 &copy; 2016, GPLv2, Sander Smeenk, <github@freshdot.net>
 
@@ -193,7 +196,7 @@ You could run this from init/upstart/systemd as a 'service'.
 $ ng-rddmarc -r -x ./report.xml
 ```
 This processes the <code>./report.xml</code> file as (<code>-x</code>)XML,
-replace records in the database if any exists, and quit.
+replacing records in the database if any exists, and quits.
 
 ```shell
 $ ng-rddmarc -x /opt/dump/xmls/
