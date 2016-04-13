@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 use strict;
 use Getopt::Std; $Getopt::Std::STANDARD_HELP_VERSION = 1;
 use MIME::Parser;
@@ -9,6 +9,8 @@ use Socket qw{:addrinfo inet_ntop inet_pton AF_INET6 AF_INET};
 use PerlIO::gzip;
 use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
+use Data::Dumper;
+$Data::Dumper::Sortkeys = 1;
 
 
 use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
@@ -105,7 +107,7 @@ sub processFile {
 
     }
 
-    return dprint("'$arg': no content found", 0) if not defined $xml or $xml eq "" or $xml == 1;
+    return dprint("'$arg': no content found", 0) if not defined $xml or $xml eq "" or $xml =~ m#^1#;
     return dprint("'$arg': no xml found\n======\n$xml\n======\n", 0) if $xml !~ m#<\?xml#i;
 
     if ($opt_m) { # detect Maildir and move to cur/
@@ -210,10 +212,16 @@ sub parseEML {
 
         }
 
-    } elsif(lc($mtype) ne "application/zip") {
+    } elsif (lc($mtype) eq "application/gzip") {
+        $isgzip = 1;
+
+    } elsif (lc($mtype) eq "application/zip") {
+        $isgzip = 0;
+
+    } else {
         $ent->purge if $ent;
         $zip->purge if $zip;
-        return dprint("Don't understand $mtype in '$file'", 0);
+        return dprint("Unknown mime type '$mtype' in '$file'", 0);
 
     }
 
@@ -257,11 +265,17 @@ sub dorow($$) {
     my $rp = $r{'auth_results'}->{'dkim'};
     if (ref($rp) eq "HASH") {
         $dkim = $rp->{'domain'};
-        $dkim = undef if ref $dkim eq "HASH";
+        if (ref $dkim eq "HASH") {
+            dprint("[BUG] \$dkim was of type HASH", 0);
+            dprint("[BUG] This will insert NULL value for 'dkimdomain' in the DB.", 0);
+            dprint("[BUG] Dumping \$dkim hashref:", 0);
+            dprint("[BUG] $_", 0) foreach split /\n/, Dumper($dkim);
+            $dkim = undef;
+        }
         $dkimresult = $rp->{'result'};
 
     } else { # array, glom sigs together, report first result
-        $dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
+        $dkim = join '/', map { my $d = $_->{'domain'}; ref $d eq "HASH" ? "" : $d } @$rp;
         $dkimresult = $rp->[0]->{'result'};
 
     }
@@ -273,7 +287,7 @@ sub dorow($$) {
         $spfresult = $rp->{'result'};
 
     } else { # array, glom domains together, report first result
-        $spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
+        $spf = join '/', map { my $d = $_->{'domain'}; ref $d eq "HASH" ? "" : $d } @$rp;
         $spfresult = $rp->[0]->{'result'};
 
     }
@@ -300,16 +314,14 @@ sub dorow($$) {
         $iptype = "ip";
 
     } elsif ($nip = inet_pton(AF_INET6, $ip)) {
-        $ipval = "X'" . unpack("H*",$nip) . "'";
+        $ipval = $nip;
         $iptype = "ip6";
 
     } else {
         dprint("    ??? mystery ip '$ip'", 0);
-        return;
+        $ipval = undef;
 
     }
-
-    dprint("    $iptype = $ipval", 2);
 
     $dbh->do(qq{
             INSERT INTO rptrecord
@@ -369,22 +381,20 @@ sub findFiles {
             next if $opt_n; # don't recurse?
 
             my @lookpaths = ();
-            if ($opt_m && $maildir_base) {
+            if ($opt_m && $maildir_base) { # Maildir/ processing
                 push @lookpaths, $maildir_base . "/new/";
                 push @lookpaths, $maildir_base . "/cur/" if $opt_c;
 
-            } else {
+            } else { # just a normal dir to process
                 push @lookpaths, $ent;
 
             }
 
-            foreach my $path (@lookpaths) {
+            foreach my $path (@lookpaths) { # just look for files in dirs, dont recurse deeper.
                 opendir(DIR, $path) or die "'$path': $!";
                 push @files, "$path/" . $_ foreach grep { !/^\./ && -f "$path/$_" } sort readdir DIR;
                 closedir(DIR);
             }                    
-
-            next;
 
         }
 
@@ -394,7 +404,7 @@ sub findFiles {
 }
 
 
-sub HELP_MESSAGE() { showHelp(); }
+sub HELP_MESSAGE() { showHelp(); } # Getopts
 sub showHelp {
     my ($type) = @_;
     $type ||= "help";
@@ -414,12 +424,9 @@ sub showHelp {
 sub dprint {
     my ($msg, $lvl) = @_;
     $lvl = 1 if not defined $lvl;
-
-    $msg =~ s#\n+$##g;
-    $msg .= "\n";
-
+    $msg =~ s/\n+$//g; $msg .= "\n";
     return print $msg if ($lvl == 0);
-    print $msg if $opt_d and (($opt_d == -1) or ($lvl <= $opt_d));
+    return print $msg if ($opt_d and (($opt_d ==-1) or ($lvl <= $opt_d)));
 }
 
 
@@ -441,9 +448,10 @@ Options:
     -h       show this text
     -s       show MySQL create table statements
 
-    -d nn    print debug info, nn = level, -1 = all
+    -d nn    print debug info, nn = level,
+             -1 = all, 10 = sensible, 11 = xml dumps
 
-    -r       replace existing reports
+    -r       replace existing reports in database
     -x       read XML files rather than mail messages
 
     -w       block and monitor for new files in path(s) to process
