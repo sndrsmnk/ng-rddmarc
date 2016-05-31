@@ -11,7 +11,7 @@ use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
-
+$main::VERSION = "0.999beta2";
 
 use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
             $opt_U $opt_P $opt_N $opt_H};
@@ -110,19 +110,10 @@ sub processFile {
     return dprint("'$arg': no content found", 0) if not defined $xml or $xml eq "" or $xml =~ m#^1#;
     return dprint("'$arg': no xml found\n======\n$xml\n======\n", 0) if $xml !~ m#<\?xml#i;
 
-    if ($opt_m) { # detect Maildir and move to cur/
-        my ($path) = $arg =~ m#^(.*)/#;
-        if (isMaildir($path)) {
-            my $new_name = $arg;
-            $new_name =~ s#/new/#/cur/#g;
-            rename "$arg", "$new_name" or dprint("Can't rename '$arg' to '$new_name': $!", 0);
-            dprint("[maildir] moved '$arg' to '$new_name'", 5);
-
-        }
-
-    }
-
     dprint("XML is ======\n$xml\n=====", 11);
+
+    # Fix incorrect 'utf8' encoding to correct 'utf-8'.
+    $xml =~ s#encoding=['"]utf8['"]#encoding='utf-8'#;
 
     $dbh = DBI->connect("DBI:mysql:hostname=$opt_H:database=$opt_N:mysql_auto_reconnect=1", $opt_U, $opt_P)
         or die "Cannot connect to database: $DBI::errstr\n";
@@ -177,6 +168,18 @@ sub processFile {
     }
 
     $dbh->disconnect();
+
+    if ($opt_m) { # detect Maildir and move to cur/
+        my ($path) = $arg =~ m#^(.*)/#;
+        if (isMaildir($path)) {
+            my $new_name = $arg;
+            $new_name =~ s#/new/#/cur/#g;
+            rename "$arg", "$new_name" or dprint("Can't rename '$arg' to '$new_name': $!", 0);
+            dprint("[maildir] moved '$arg' to '$new_name'", 5);
+
+        }
+
+    }
 
 }
 
@@ -259,27 +262,22 @@ sub dorow($$) {
     my $count = $r{'row'}->{'count'};
     my $disp  = $r{'row'}->{'policy_evaluated'}->{'disposition'};
 
-    my ($dkim, $dkimresult, $spf, $spfresult, $reason);
+    my ($dkimdomain, $dkimresult, $spf, $spfresult, $reason);
 
     
     my $rp = $r{'auth_results'}->{'dkim'};
     if (ref($rp) eq "HASH") {
-        $dkim = $rp->{'domain'};
-        if (ref $dkim eq "HASH") {
-            dprint("[BUG] \$dkim was of type HASH", 0);
-            dprint("[BUG] This will insert NULL value for 'dkimdomain' in the DB.", 0);
-            dprint("[BUG] Dumping \$dkim hashref:", 0);
-            dprint("[BUG] $_", 0) foreach split /\n/, Dumper($dkim);
-            $dkim = undef;
-        }
+        $dkimdomain = $rp->{'domain'};
         $dkimresult = $rp->{'result'};
 
     } else { # array, glom sigs together, report first result
-        $dkim = join '/', map { my $d = $_->{'domain'}; ref $d eq "HASH" ? "" : $d } @$rp;
+        $dkimdomain = join '/', map { my $d = $_->{'domain'}; ref $d eq "HASH" ? "" : $d } @$rp;
         $dkimresult = $rp->[0]->{'result'};
 
     }
 
+    # Message withouth DKIM signing was received.
+    $dkimdomain = '' if ref($dkimdomain) eq "HASH";
 
     $rp = $r{'auth_results'}->{'spf'};
     if (ref($rp) eq "HASH") {
@@ -304,7 +302,7 @@ sub dorow($$) {
 
 
     dprint("    ip=$ip, count=$count, disp=$disp, r=$reason,", 2);
-    dprint("    dkim=$dkim/$dkimresult, spf=$spf/$spfresult", 2);
+    dprint("    dkim=$dkimdomain/".($dkimresult||'').", spf=$spf/".($spfresult||''), 2);
 
 
     # figure out if it's IPv4 or IPv6
@@ -323,6 +321,7 @@ sub dorow($$) {
 
     }
 
+
     $dbh->do(qq{
             INSERT INTO rptrecord
                 (serial, $iptype, rcount, disposition, reason,
@@ -332,7 +331,7 @@ sub dorow($$) {
                  ?, ?, ?, ?)}, undef, 
                 
                 $serial, $ipval, $count, $disp, $reason,
-                $dkim, $dkimresult, $spf, $spfresult
+                $dkimdomain, $dkimresult, $spf, $spfresult
         ) or return dprint("Cannot insert record: $DBI::errstr", 0);
 }
 
