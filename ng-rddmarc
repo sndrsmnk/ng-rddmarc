@@ -11,7 +11,7 @@ use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
-$main::VERSION = "0.999beta2";
+$main::VERSION = "0.999beta4";
 
 use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
             $opt_U $opt_P $opt_N $opt_H};
@@ -484,7 +484,7 @@ CREATE TABLE report (
   reportid varchar(255) NOT NULL,
   PRIMARY KEY (serial),
   UNIQUE KEY domain (domain,reportid)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 
 CREATE TABLE rptrecord (
   serial int(10) unsigned NOT NULL,
@@ -499,7 +499,7 @@ CREATE TABLE rptrecord (
   spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
   KEY serial (serial,ip),
   KEY serial6 (serial,ip6)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 
 CREATE TABLE failure (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -516,7 +516,7 @@ CREATE TABLE failure (
   KEY(sourceip),
   KEY(fromdomain),
   KEY(bouncedomain)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 #endsql
 
 
