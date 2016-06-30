@@ -20,7 +20,7 @@ getopts('hsd:rxwnmcU:P:N:H:');
 
 exit showHelp("help") if $opt_h;
 exit showHelp("sql") if $opt_s;
-die "No source(s) specified. See '$0 -h'.\n" if not scalar(@ARGV);
+exit showHelp("help", "No source(s) specified.") if not scalar(@ARGV);
 
 
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
@@ -405,7 +405,7 @@ sub findFiles {
 
 sub HELP_MESSAGE() { showHelp(); } # Getopts
 sub showHelp {
-    my ($type) = @_;
+    my ($type, $msg) = @_;
     $type ||= "help";
 
     open (FD, $0) or die "Can't read $0: $!\n";
@@ -416,6 +416,10 @@ sub showHelp {
         $print = 1 if (/^#start$type/);
     }
     close(FD);
+
+    $msg =~ s/[\r\n]+$// if defined $msg;
+    print "\nError:\n$msg\n" if defined $msg;
+
     exit 0;
 }
 
