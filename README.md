@@ -15,12 +15,12 @@ module will, by itself, monitor a directory by performing directory
 scans periodically. You can get more efficient monitor methods by
 installing the matching implementation for your OS:
 
-OS      | Module
-------- | -----------------------
-Linux   | Linux::Inotify2
-OSX     | Mac::FSEvents
-BSD     | Filesys::Notify::KQueue
-Windows | Win32::ChangeNofity
+OS      | Module                  | Package
+------- | ----------------------- | -------
+Linux   | Linux::Inotify2         | liblinux-inotify2-perl
+OSX     | Mac::FSEvents           | <em>CPAN? Suggest a fix!</em>
+BSD     | Filesys::Notify::KQueue | <em>CPAN? Suggest a fix!</em>
+Windows | Win32::ChangeNofity     | <em>CPAN? Suggest a fix!</em>
 
 You'll also need the following Perl modules installed:
 
@@ -38,8 +38,8 @@ DBI                     | libdbi-perl
 
 # Invocation
 ```
-perl script.pl [opts] <filenames ...>
-perl script.pl [opts] <directories ...>
+ng-rddmarc [opts] <filenames ...>
+ng-rddmarc [opts] <directories ...>
 
 Options:
     -h       show this text
@@ -132,6 +132,7 @@ $ ssh root@databaseserver
 $ mysql
 mysql> CREATE DATABASE dmarc DEFAULT CHARACTER SET utf8;
 mysql> GRANT ALL ON dmarc.* TO 'dmarc'@'%' IDENTIFIED BY 'yourplainpassword';
+mysql> FLUSH PRIVILEGES;
 mysql> exit
 Bye
 $ ng-rddmarc -s | mysql -u dmarc -p -h databaseserver dmarc
@@ -149,7 +150,7 @@ CREATE TABLE report (
   reportid varchar(255) NOT NULL,
   PRIMARY KEY (serial),
   UNIQUE KEY domain (domain,reportid)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 
 CREATE TABLE rptrecord (
   serial int(10) unsigned NOT NULL,
@@ -164,7 +165,7 @@ CREATE TABLE rptrecord (
   spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
   KEY serial (serial,ip),
   KEY serial6 (serial,ip6)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 
 CREATE TABLE failure (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -181,7 +182,7 @@ CREATE TABLE failure (
   KEY(sourceip),
   KEY(fromdomain),
   KEY(bouncedomain)
-) charset=utf8 ENGINE=MyISAM;
+) charset=utf8;
 ```
 
 # Examples
