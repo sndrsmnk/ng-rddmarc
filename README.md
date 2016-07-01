@@ -44,44 +44,38 @@ ng-rddmarc [opts] <directories ...>
 Options:
     -h       show this text
     -s       show MySQL create table statements
-    -d nn    print debug info, nn = level, -1 = all
 
-    -r       replace existing reports
-    -x       read XML files rather than mail messages
+    -d nn    print debug info, nn = level,
+             -1 = all, 10 = sensible, 11 = xml dumps
+
+    -r       replace existing reports in database
 
     -w       block and monitor for new files in path(s) to process
     -n       do not initially scan files in path(s) specified
     -m       detect Maildir: process files and monitor in new/ dir,
-                 move completed to cur/ dir.
+             move completed to cur/ dir.
     -c       if path is Maildir, also process cur/ on startup
 
+  The following 'conf:' lines can be stored in $HOME/.ng-rddmarc.conf.
     -U xxx   database user        conf: $opt_U = "username";
     -P xxx   database password    conf: $opt_P = "password";
     -N xxx   database name        conf: $opt_N = "dbname";
     -H xxx   database hostname    conf: $opt_H = "hostname";
+    -p       enable persistent database connection
+             defaults to connect for each report processed (0)
+                                  conf: $opt_p = 1;
 ```
 
 
-# Consideration
+# Configuration
 See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
 config. Place it in <code>$HOME/.ng-rddmarc.conf</code> to configure
-the database connection. If not all database options are specified on
-the command line, the script will look for this file and merge that
-with the command line specified values. This means, for example, you
-could use just <code>-N</code> on the commandline, and have the other
-values filled in from <code>.ng-rddmarc.conf</code>. 
+the database connection. Configuration options specified via command
+line override those specified in the configuration file.<br/>
+A valid database environment is needed for operation.
 
-Other <code>$opt&#x5f;</code> values can also be set from
-<code>.ng-rddmarc.conf</code>. For example, setting <code>$opt&#x5f;w =
-1;</code> will enable -w by default.
 
-<strong>Please note:</strong>
-- specifying all of <code>-U</code>, <code>-P</code>, <code>-N</code>
-and <code>-H</code> on the command line disables loading of
-<code>.ng-rddmarc.conf</code>.
-- if <code>.ng-rddmarc.conf</code> also specifies <code>$opt&#x5f;N</code>,
-it will override the <code>-N</code> value specified on the commandline.
-
+# Consideration
 Default startup behaviour is to process all files specified on the
 command line and those found within directories specified on the
 command line. There will be no recursion into subdirectories.
@@ -89,6 +83,14 @@ Use the <code>-n</code> option to prevent this script from scanning for
 files within directories on startup. It will then only process files
 explicitly specified on the command line.
 
+
+# Filetypes
+The tool will try to distinguish between XML formatted report files, with
+the first five bytes <code>&lt;?xml'</code>, and assume all other files are
+proper MIME compatible <code>message/rfc822</code>-formatted 'email files'.
+
+
+# Maildir
 When a Maildir/ structure is specified, and <code>-m</code> is used, by
 default only the <code>new/</code> directory is scanned for files to
 process. They will be moved to <code>cur/</code> after successful
@@ -98,6 +100,8 @@ option. Using <code>-w</code> with <code>-m</code> will cause the
 <code>new/</code> directory to be monitored for events, even if you
 specified the parent directory on the commandline.
 
+
+# Block and wait
 Use the <code>-w</code> flag in combination with at least one directory
 on the command line to enable 'waiting for new events' in said
 directory. You could run <code>ng-rddmarc</code> as a daemon and process
@@ -108,11 +112,8 @@ Mail' in your mail client).
 Other non-Maildir/ directories may be mixed with Maildir/ type
 directories and will be processed and watched as normal directories.
 
-All files found in directories or specified on the command line are
-parsed as <code>message/rfc822</code>-formatted 'email files' by
-default. Use the <code>-x</code> option to indicate you're feeding in
-the actual XML-formatted report files.
 
+# Verbosity
 The <code>-d</code> flag enables verbose output. There is no real logic
 to the verbose levels at this moment. A value of <code>10</code> shows
 everything but dumps of the parsed XML-bodies and is most useful if
@@ -120,7 +121,6 @@ something is going awry.
 
 
 # Database
-
 This script was developed with a MySQL database as backend. But it uses
 Perl DBI and it should thus be trivial to change to a different database
 backend. The MySQL create statements can be obtained by running
@@ -185,6 +185,7 @@ CREATE TABLE failure (
 ) charset=utf8;
 ```
 
+
 # Examples
 We all love examples.
 
@@ -208,23 +209,22 @@ appear in the <code>new/</code> directory and process them, indefinitely.
 You could run this from init/upstart/systemd as a 'service'.
 
 ```shell
-$ ng-rddmarc -r -x ./report.xml
+$ ng-rddmarc -r ./report.xml
 ```
-This processes the <code>./report.xml</code> file as XML, replacing
+This processes the <code>./report.xml</code> file, replacing
 records in the database if any exists, and quits.
 
 ```shell
-$ ng-rddmarc -x /opt/dump/xmls/
+$ ng-rddmarc /opt/dump/xmls/
 ```
-Processes all files in <code>/opt/dump/xmls/</code> as XML, skips
+Processes all files in <code>/opt/dump/xmls/</code>, skips
 reports that are already in the database, and quits.
 
 ```shell
 $ ng-rddmarc -w /opt/dir ./messagefile.eml
 ```
 Processes all files in <code>/opt/dir</code> <i>and</i>
-<code>./messagefile.eml</code> as default <code>message/rfc822</code>
-formatted files, after this it will wait for new files in
+<code>./messagefile.eml</code>, after this it will wait for new files in
 <code>/opt/dir</code> indefinitely.
 
 ... etc.

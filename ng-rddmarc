@@ -12,58 +12,76 @@ use Time::HiRes qw(usleep);
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 $main::VERSION = "0.999beta4";
+my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
 
-use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_x $opt_w $opt_n $opt_m $opt_c
-            $opt_U $opt_P $opt_N $opt_H};
-getopts('hsd:rxwnmcU:P:N:H:');
+
+use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c
+            $opt_U $opt_P $opt_N $opt_H $opt_p};
+getopts('hsd:rwnmcU:P:N:H:p');
 
 
 exit showHelp("help") if $opt_h;
 exit showHelp("sql") if $opt_s;
-exit showHelp("help", "No source(s) specified.") if not scalar(@ARGV);
+exit showHelp("help", "No directory and/or file source(s) specified.") if not scalar(@ARGV);
 
 
-my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
-if ($opt_U && $opt_P && $opt_N && $opt_H) {
-    dprint("Database config specified on commandline.", 1);
+# merge config, commandline opts always override config.
+my $cmd = { 'U' => $opt_U, 'P' => $opt_P, 'N' => $opt_N, 'H' => $opt_H, 'p' => ($opt_p || 0) };
+$opt_U = $opt_P = $opt_N = $opt_H = $opt_p = undef;
+if (-e $conffile) {
+    open(FD, "<$conffile") or die "Can't read $conffile: $!\n";
+    my $blob = "";
+    { local $/ = undef; $blob = <FD>; close(FD); }
+    eval $blob;
+    exit dprint("The configuration file had syntax errors and failed to parse:\n$@", 0)
+        if ($@);
 
-} else {
-    if (-e $conffile) {
-        open(FD, "<$conffile") or die "Can't read $conffile: $!\n";
-        my $blob = ""; { local $/ = undef; $blob = <FD>; close(FD) }
-        eval $blob;
-        if ($opt_U && $opt_P && $opt_N && $opt_H) {
-            dprint("Database config loaded from $conffile.", 1);
+    my $cfg = { 'U' => $opt_U, 'P' => $opt_P, 'N' => $opt_N, 'H' => $opt_H, 'p' => $opt_p };
 
-        } else {
-            die "No correct database config after loading $conffile.\n";
+    foreach my $ll (qw(U P N H p)) {
+        if (defined $$cmd{$ll} and defined $$cfg{$ll}) {
+            dprint("[dbconf] configured value for 'opt_$ll' was overriden from commandline.", 10);
+            next;
 
         }
 
-    } else {
-        die "No database config in $conffile, nor on commandline.\n";
+        if (not defined $$cmd{$ll} and defined $$cfg{$ll}) {
+            dprint("[dbconf] configured value for 'opt_$ll' was used. not specified on commandline.", 10);
+            $$cmd{$ll} = $$cfg{$ll};
+
+        }
+
+        if (not defined $$cmd{$ll} and not defined $$cfg{$ll}) {
+            exit showHelp("help", "No database config value for 'opt_$ll' was found in config or commandline.");
+
+        }
 
     }
 
 }
 
 
-my ($ftmp, $dtmp) = findFiles(@ARGV);
-my @files = @$ftmp; undef $ftmp;
-my @dirs = @$dtmp; undef $dtmp;
-my $dbh = undef;
+# set-up / test db env
+dprint("[dbconf] connection is" . ($$cmd{p}?"":" not") . " persistent.", 10);
+my $dbh = dbConnect();
+$dbh->disconnect() if not $$cmd{'p'};
 
 
-processFile($_) foreach @files;
+# heavy lifting
+my ($files, $dirs) = findFiles(@ARGV);
+exit showHelp("help", "No directories were specified to watch for activity.")
+    if (not @$dirs and $opt_w);
 
+processFile($_) foreach @$files;
+undef $files;
 
-if (@dirs and $opt_w) {
-    dprint("Waiting for new events in [".join(",", @dirs)."]", 0);
-    my $watcher = Filesys::Notify::Simple->new(\@dirs);
-    my $previous = "";
+if ($opt_w) {
+    dprint("Waiting for new events in [".join(",", @$dirs)."]", 0);
+    my $watcher = Filesys::Notify::Simple->new($dirs);
+    my $previous = "";  # events sometimes seem to fire twice
     while (1) { 
         $watcher->wait(sub{ 
-            usleep(50000); # event fires fast, grace sleep
+            usleep(50000); # event fires on fast, grace sleep for io
             foreach (@_) {
                 next if $previous eq $_->{path};
                 $previous = $_->{path};
@@ -74,9 +92,6 @@ if (@dirs and $opt_w) {
         });
 
     };
-
-} elsif (not @dirs and $opt_w) {
-    dprint("No directories were specified to watch for activity.", 0);
 
 }
 
@@ -96,14 +111,17 @@ sub processFile {
     return if (not -f $arg) or (not -r $arg);
     dprint("Parsing $arg", 0);
 
-    my $xml = "";
-    if ($opt_x) { # expect XML file(s)
-        open(XML, $arg) or die "Cannot open file $arg: $!\n";
-        $xml .= $_ while <XML>;
-        close XML;
+    my $content = "";
+    open (FILE, $arg) or die "Cannt open file '$arg': $!\n";
+    $content .= $_ while <FILE>;
+    close(FILE);
 
-    } else { # expect EML file
-        $xml = parseEML($arg);
+    my $xml = "";
+    if ($content =~ m#^<\?xml#) {
+        $xml = $content;
+
+    } else {
+        $xml = parseEML($content);
 
     }
 
@@ -115,8 +133,8 @@ sub processFile {
     # Fix incorrect 'utf8' encoding to correct 'utf-8'.
     $xml =~ s#encoding=['"]utf8['"]#encoding='utf-8'#;
 
-    $dbh = DBI->connect("DBI:mysql:hostname=$opt_H:database=$opt_N:mysql_auto_reconnect=1", $opt_U, $opt_P)
-        or die "Cannot connect to database: $DBI::errstr\n";
+    # if db not persistent, reconnect db
+    $dbh = dbConnect() if (not $$cmd{'p'});
 
     my $xs = XML::Simple->new();
     my $ref = $xs->XMLin($xml);
@@ -139,7 +157,7 @@ sub processFile {
 
     } elsif ($xorg) {
         dprint("  Already have $xorg\'s report id $xid as serial $serial, skipped", 0);
-        $dbh->disconnect();
+        $dbh->disconnect() unless $$cmd{'p'};
         return;
 
     }
@@ -167,7 +185,7 @@ sub processFile {
 
     }
 
-    $dbh->disconnect();
+    $dbh->disconnect() unless $$cmd{'p'};
 
     if ($opt_m) { # detect Maildir and move to cur/
         my ($path) = $arg =~ m#^(.*)/#;
@@ -185,12 +203,12 @@ sub processFile {
 
 
 sub parseEML {
-    my ($file) = @_;
+    my ($content) = @_;
 
     my $parser = new MIME::Parser;
     $parser->output_dir("/tmp");
 
-    my $ent    = $parser->parse_open($file);
+    my $ent    = $parser->parse_data($content);
     my $body   = $ent->bodyhandle;
     my $zip    = $body;
     my $mtype  = $ent->mime_type;
@@ -224,13 +242,14 @@ sub parseEML {
     } else {
         $ent->purge if $ent;
         $zip->purge if $zip;
-        return dprint("Unknown mime type '$mtype' in '$file'", 0);
+        return dprint("Unknown mime type '$mtype'!", 0);
 
     }
 
     if (not $zip) {
         $ent->purge if $ent;
-        return dprint("No (g)zip found in '$file'", 0);
+        return dprint("No (g)zip found in file content!", 0);
+
     }
 
     dprint("Report " . ($isgzip?"gzip":"zip") . " is in " . $zip->path, 2);
@@ -250,6 +269,13 @@ sub parseEML {
     $ent->purge if $ent;
     $zip->purge if $zip;
 
+    return $ret;
+}
+
+
+sub dbConnect {
+    my $ret = DBI->connect("DBI:mysql:hostname=$$cmd{'H'}:database=$$cmd{'N'}:mysql_auto_reconnect=1", $$cmd{'U'}, $$cmd{'P'})
+        or die "Cannot connect to database: $DBI::errstr\n";
     return $ret;
 }
 
@@ -354,7 +380,7 @@ sub findFiles {
         $ent =~ s#/+$##;
 
         if (not -r $ent) {
-            dprint("'$ent': $!", 0);
+            dprint("Can't read '$ent': $!", 0);
             next;
 
         }
@@ -408,12 +434,12 @@ sub showHelp {
     my ($type, $msg) = @_;
     $type ||= "help";
 
-    open (FD, $0) or die "Can't read $0: $!\n";
+    open (FD, "<".$0) or die "Can't read $0: $!\n";
     my $print = 0;
-    while (<FD>) {
-        last if (/^#end$type/);
-        print if $print;
-        $print = 1 if (/^#start$type/);
+    while (my $ll = <FD>) {
+        last if ($ll =~ /^#end$type/);
+        print "$ll" if $print;
+        $print = 1 if ($ll =~ /^#start$type/);
     }
     close(FD);
 
@@ -438,12 +464,6 @@ __END__
 © 2016, GPLv2, Sander Smeenk <ssmeenk@freshdot.net>
 See attribution and license info in __END__ block.
 
-Note: see Filesys::Notify::Simple man page:
-On Linux install Linux::Inotify2,
-on OSX install Mac::FSEvents,
-on BSD install Filesys::Notify::KQueue,
-on Windows install Win32::ChangeNotify.
-
 $ ng-rddmarc [opts] <filenames ...>
 $ ng-rddmarc [opts] <directories ...>
 
@@ -455,7 +475,6 @@ Options:
              -1 = all, 10 = sensible, 11 = xml dumps
 
     -r       replace existing reports in database
-    -x       read XML files rather than mail messages
 
     -w       block and monitor for new files in path(s) to process
     -n       do not initially scan files in path(s) specified
@@ -463,16 +482,14 @@ Options:
              move completed to cur/ dir.
     -c       if path is Maildir, also process cur/ on startup
 
+  The following 'conf:' lines can be stored in $HOME/.ng-rddmarc.conf.
     -U xxx   database user        conf: $opt_U = "username";
     -P xxx   database password    conf: $opt_P = "password";
     -N xxx   database name        conf: $opt_N = "dbname";
     -H xxx   database hostname    conf: $opt_H = "hostname";
-        The four conf lines can be stored in $HOME/.ng-rddmarc.conf.
-
-If a directory is specified as argument, it is assumed that every
-normal file in that directory is a valid 'message/rfc822'-type
-file, meaning, every file in the directory will be parsed.
-There will be no recursion within the directory.
+    -p       enable persistent database connection
+             defaults to connect for each report processed (0)
+                                  conf: $opt_p = 1;
 #endhelp
 
  
@@ -522,7 +539,6 @@ CREATE TABLE failure (
   KEY(bouncedomain)
 ) charset=utf8;
 #endsql
-
 
 
 Original license:
