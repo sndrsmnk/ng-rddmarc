@@ -86,7 +86,7 @@ explicitly specified on the command line.
 
 # Filetypes
 The tool will try to distinguish between XML formatted report files, with
-the first five bytes <code>&lt;?xml'</code>, and assume all other files are
+the first five bytes <code>&lt;?xml</code>, and assume all other files are
 proper MIME compatible <code>message/rfc822</code>-formatted 'email files'.
 
 

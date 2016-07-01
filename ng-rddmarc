@@ -11,7 +11,7 @@ use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
-$main::VERSION = "0.999beta4";
+$main::VERSION = "0.999beta5";
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
 
 
