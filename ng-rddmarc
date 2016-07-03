@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
-use Getopt::Std; $Getopt::Std::STANDARD_HELP_VERSION = 1;
+use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
 use MIME::Parser;
 use MIME::Words qw(:all);
 use XML::Simple;
@@ -9,9 +9,7 @@ use Socket qw{:addrinfo inet_ntop inet_pton AF_INET6 AF_INET};
 use PerlIO::gzip;
 use Filesys::Notify::Simple;
 use Time::HiRes qw(usleep);
-use Data::Dumper;
-$Data::Dumper::Sortkeys = 1;
-$main::VERSION = "0.999beta5";
+use Data::Dumper; $Data::Dumper::Sortkeys = 1;
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
 
 
@@ -25,7 +23,7 @@ exit showHelp("sql") if $opt_s;
 exit showHelp("help", "No directory and/or file source(s) specified.") if not scalar(@ARGV);
 
 
-# merge config, commandline opts always override config.
+# merge config, database-related command line opts always override config.
 my $cmd = { 'U' => $opt_U, 'P' => $opt_P, 'N' => $opt_N, 'H' => $opt_H, 'p' => ($opt_p || 0) };
 $opt_U = $opt_P = $opt_N = $opt_H = $opt_p = undef;
 if (-e $conffile) {
@@ -40,7 +38,7 @@ if (-e $conffile) {
 
     foreach my $ll (qw(U P N H p)) {
         if (defined $$cmd{$ll} and defined $$cfg{$ll}) {
-            dprint("[dbconf] configured value for 'opt_$ll' was overriden from commandline.", 10);
+            dprint("[dbconf] configured value for 'opt_$ll' was overridden from commandline.", 10);
             next;
 
         }
@@ -64,7 +62,7 @@ if (-e $conffile) {
 # set-up / test db env
 dprint("[dbconf] connection is" . ($$cmd{p}?"":" not") . " persistent.", 10);
 my $dbh = dbConnect();
-$dbh->disconnect() if not $$cmd{'p'};
+$dbh->disconnect() if not $$cmd{'p'}; # opt_p - Database connection persistence
 
 
 # heavy lifting
@@ -125,25 +123,24 @@ sub processFile {
 
     }
 
-    return dprint("'$arg': no content found", 0) if not defined $xml or $xml eq "" or $xml =~ m#^1#;
-    return dprint("'$arg': no xml found\n======\n$xml\n======\n", 0) if $xml !~ m#<\?xml#i;
+    return dprint("'$arg': failed to parse properly. no xml part returned.", 0) if not defined $xml or $xml eq "" or $xml =~ m#^1#;
+    return dprint("'$arg': xml does not look like xml.\n======\n$xml\n======\n", 0) if $xml !~ m#<\?xml#i;
 
-    dprint("XML is ======\n$xml\n=====", 11);
+    dprint("Fixed incorrect 'utf8' encoding to correct 'utf-8' encoding!", 4)
+        if ($xml =~ s#encoding=['"]utf8['"]#encoding='utf-8'#);
 
-    # Fix incorrect 'utf8' encoding to correct 'utf-8'.
-    $xml =~ s#encoding=['"]utf8['"]#encoding='utf-8'#;
+    dprint("[xmldump] ======\n$xml\n[/xmldump] ======", 11);
 
     # if db not persistent, reconnect db
     $dbh = dbConnect() if (not $$cmd{'p'});
 
     my $xs = XML::Simple->new();
     my $ref = $xs->XMLin($xml);
-    my %xml = %{$ref};
-    my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
-    my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
-    my $org = $xml{'report_metadata'}->{'org_name'};
-    my $id = $xml{'report_metadata'}->{'report_id'};
-    my $domain =  $xml{'policy_published'}->{'domain'};
+    my $from = $$ref{'report_metadata'}{'date_range'}{'begin'};
+    my $to = $$ref{'report_metadata'}{'date_range'}{'end'};
+    my $org = $$ref{'report_metadata'}{'org_name'};
+    my $id = $$ref{'report_metadata'}{'report_id'};
+    my $domain =  $$ref{'policy_published'}{'domain'};
 
     dprint("  Report from $org (id: $id) for $domain", 2);
     dprint("    Period: " . scalar(localtime($from)) . " - " . scalar(localtime($to)), 2);
@@ -168,7 +165,7 @@ sub processFile {
     $dbh->do($sql, undef, $serial, $from, $to, $domain, $org, $id) or die "cannot make report" . $dbh->errstr;
     $serial = $dbh->{'mysql_insertid'} || $dbh->{'insertid'} unless $xorg;
 
-    my $record = $xml{'record'};
+    my $record = $$ref{'record'};
     if (ref $record eq "HASH") {
         dprint("  Serial $serial, single record", 0);
         dorow($serial,$record);
@@ -229,6 +226,9 @@ sub parseEML {
                 $zip = $part->bodyhandle;
                 last;
 
+            } else {
+                dprint("Unsupported multipart mime_type skipped: '".$part->mime_type."'", 7);
+
             }
 
         }
@@ -276,11 +276,12 @@ sub parseEML {
 sub dbConnect {
     my $ret = DBI->connect("DBI:mysql:hostname=$$cmd{'H'}:database=$$cmd{'N'}:mysql_auto_reconnect=1", $$cmd{'U'}, $$cmd{'P'})
         or die "Cannot connect to database: $DBI::errstr\n";
+    dprint("[dbconf] database connected.", 10);
     return $ret;
 }
 
 
-sub dorow($$) {
+sub dorow {
     my ($serial, $recp) = @_;
 
     my %r     = %$recp;
@@ -302,7 +303,7 @@ sub dorow($$) {
 
     }
 
-    # Message withouth DKIM signing was received.
+    # Report about message withouth DKIM signing info was received.
     $dkimdomain = '' if ref($dkimdomain) eq "HASH";
 
     $rp = $r{'auth_results'}->{'spf'};
@@ -358,14 +359,16 @@ sub dorow($$) {
                 
                 $serial, $ipval, $count, $disp, $reason,
                 $dkimdomain, $dkimresult, $spf, $spfresult
+
         ) or return dprint("Cannot insert record: $DBI::errstr", 0);
+
 }
 
 
 sub isMaildir {
     my ($path) = @_;
     $path =~ s#/+(?:cur|new|tmp)/*$##;
-    return "$path" if (-d "$path/cur/" && -d "$path/new/" && -d "$path/tmp/");
+    return $path if (-d "$path/cur/" && -d "$path/new/" && -d "$path/tmp/");
     return 0;
 }
 
@@ -380,7 +383,7 @@ sub findFiles {
         $ent =~ s#/+$##;
 
         if (not -r $ent) {
-            dprint("Can't read '$ent': $!", 0);
+            dprint("Can't read '$ent', skipping: $!", 0);
             next;
 
         }
@@ -392,13 +395,15 @@ sub findFiles {
         }
          
         if (-d $ent) {
-            my $maildir_base = isMaildir($ent);
+            my $maildir_base = "";
 
-            if ($opt_m && $maildir_base) {
+            if ($opt_m and $maildir_base = isMaildir($ent)) {
                 dprint("Maildir detected in '$ent'", 3);
                 push @dirs, $maildir_base . '/new/';
+                next;
 
             } else {
+                dprint("Not a Maildir or not using opt_m, treating as normal directory.", 4);
                 push @dirs, $ent;
 
             }
@@ -419,6 +424,7 @@ sub findFiles {
                 opendir(DIR, $path) or die "'$path': $!";
                 push @files, "$path/" . $_ foreach grep { !/^\./ && -f "$path/$_" } sort readdir DIR;
                 closedir(DIR);
+
             }                    
 
         }
@@ -429,7 +435,7 @@ sub findFiles {
 }
 
 
-sub HELP_MESSAGE() { showHelp(); } # Getopts
+sub HELP_MESSAGE { showHelp(); } # Getopts
 sub showHelp {
     my ($type, $msg) = @_;
     $type ||= "help";
@@ -440,12 +446,15 @@ sub showHelp {
         last if ($ll =~ /^#end$type/);
         print "$ll" if $print;
         $print = 1 if ($ll =~ /^#start$type/);
+
     }
     close(FD);
 
-    $msg =~ s/[\r\n]+$// if defined $msg;
-    print "\nError:\n$msg\n" if defined $msg;
+    if ($msg) {
+        $msg =~ s/[\r\n]+$//;
+        print "\n[!] Attention:\n$msg\n";
 
+    }
     exit 0;
 }
 
@@ -520,23 +529,6 @@ CREATE TABLE rptrecord (
   spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
   KEY serial (serial,ip),
   KEY serial6 (serial,ip6)
-) charset=utf8;
-
-CREATE TABLE failure (
-  serial int(10) unsigned NOT NULL AUTO_INCREMENT,
-  org varchar(255) NOT NULL, -- reported-domain
-  bouncedomain varchar(255), -- MAIL FROM bouncebox@bouncedomain
-  bouncebox varchar(255),
-  fromdomain varchar(255), -- From: frombox@fromdomain
-  frombox varchar(255),
-  arrival TIMESTAMP,
-  sourceip int unsigned, -- inet_aton(source-ip)
-  sourceip6 BINARY(16), -- inet_6top(source-ip)
-  headers TEXT,
-  PRIMARY KEY(serial),
-  KEY(sourceip),
-  KEY(fromdomain),
-  KEY(bouncedomain)
 ) charset=utf8;
 #endsql
 
