@@ -1,20 +1,20 @@
 #!/usr/bin/perl -w
 use strict;
-use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
-use MIME::Parser;
-use MIME::Words qw(:all);
-use XML::Simple;
 use DBI;
-use Socket qw{:addrinfo inet_ntop inet_pton AF_INET6 AF_INET};
+use XML::Simple;
+use MIME::Parser;
 use PerlIO::gzip;
-use Filesys::Notify::Simple;
+use MIME::Words qw(:all);
 use Time::HiRes qw(usleep);
+use Filesys::Notify::Simple;
 use Data::Dumper; $Data::Dumper::Sortkeys = 1;
+use Socket qw(:addrinfo inet_ntop inet_pton AF_INET6 AF_INET);
+use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
 
 
-use vars qw{$opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c
-            $opt_U $opt_P $opt_N $opt_H $opt_p};
+use vars qw($opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c
+            $opt_U $opt_P $opt_N $opt_H $opt_p);
 getopts('hsd:rwnmcU:P:N:H:p');
 
 
@@ -62,7 +62,7 @@ if (-e $conffile) {
 # set-up / test db env
 dprint("[dbconf] connection is" . ($$cmd{p}?"":" not") . " persistent.", 10);
 my $dbh = dbConnect();
-$dbh->disconnect() if not $$cmd{'p'}; # opt_p - Database connection persistence
+$dbh->disconnect() if not $$cmd{'p'};
 
 
 # heavy lifting
@@ -74,9 +74,9 @@ processFile($_) foreach @$files;
 undef $files;
 
 if ($opt_w) {
-    dprint("Waiting for new events in [".join(",", @$dirs)."]", 0);
+    dprint("Waiting for new events in [".join(", ", @$dirs)."]", 0);
     my $watcher = Filesys::Notify::Simple->new($dirs);
-    my $previous = "";  # events sometimes seem to fire twice
+    my $previous = ""; # events sometimes seem to fire twice
     while (1) { 
         $watcher->wait(sub{ 
             usleep(50000); # event fires on fast, grace sleep for io
@@ -106,7 +106,10 @@ exit 0;
 sub processFile {
     my ($arg) = @_;
     $arg =~ s#//+#/#g;
-    return if (not -f $arg) or (not -r $arg);
+
+    return dprint("Can't read '$arg': $!", 0)
+        if (not -f $arg or not -r $arg);
+
     dprint("Parsing $arg", 0);
 
     my $content = "";
@@ -305,6 +308,7 @@ sub dorow {
 
     # Report about message withouth DKIM signing info was received.
     $dkimdomain = '' if ref($dkimdomain) eq "HASH";
+
 
     $rp = $r{'auth_results'}->{'spf'};
     if (ref($rp) eq "HASH") {

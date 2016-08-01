@@ -15,12 +15,12 @@ module will, by itself, monitor a directory by performing directory
 scans periodically. You can get more efficient monitor methods by
 installing the matching implementation for your OS:
 
-OS      | Module                  | Package
-------- | ----------------------- | -------
-Linux   | Linux::Inotify2         | liblinux-inotify2-perl
-OSX     | Mac::FSEvents           | <em>CPAN? Suggest a fix!</em>
-BSD     | Filesys::Notify::KQueue | <em>CPAN? Suggest a fix!</em>
-Windows | Win32::ChangeNofity     | <em>CPAN? Suggest a fix!</em>
+OS      | Module                 
+------- | -----------------------
+Linux   | Linux::Inotify2        
+OSX     | Mac::FSEvents          
+BSD     | Filesys::Notify::KQueue
+Windows | Win32::ChangeNofity    
 
 You'll also need the following Perl modules installed:
 
@@ -87,13 +87,15 @@ explicitly specified on the command line.
 # Filetypes
 The tool will try to distinguish between XML formatted report files, with
 the first five bytes <code>&lt;?xml</code>, and assume all other files are
-proper MIME compatible <code>message/rfc822</code>-formatted 'email files'.
+MIME compatible <code>message/rfc822</code>-formatted 'email files', as
+commonly found in Maildir structures, where the XML-report is a properly
+formatted base64 encoded attachment. 
 
 
 # Maildir
 When a Maildir/ structure is specified, and <code>-m</code> is used, by
 default only the <code>new/</code> directory is scanned for files to
-process. They will be moved to <code>cur/</code> after successful
+process. The files will be moved to <code>cur/</code> after successful
 processing. If you also want to scan and process all files in
 <code>cur/</code> on startup, you can use the <code>-c</code>
 option. Using <code>-w</code> with <code>-m</code> will cause the
@@ -165,23 +167,6 @@ CREATE TABLE rptrecord (
   spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
   KEY serial (serial,ip),
   KEY serial6 (serial,ip6)
-) charset=utf8;
-
-CREATE TABLE failure (
-  serial int(10) unsigned NOT NULL AUTO_INCREMENT,
-  org varchar(255) NOT NULL, -- reported-domain
-  bouncedomain varchar(255), -- MAIL FROM bouncebox@bouncedomain
-  bouncebox varchar(255),
-  fromdomain varchar(255), -- From: frombox@fromdomain
-  frombox varchar(255),
-  arrival TIMESTAMP,
-  sourceip int unsigned, -- inet_aton(source-ip)
-  sourceip6 BINARY(16), -- inet_6top(source-ip)
-  headers TEXT,
-  PRIMARY KEY(serial),
-  KEY(sourceip),
-  KEY(fromdomain),
-  KEY(bouncedomain)
 ) charset=utf8;
 ```
 
