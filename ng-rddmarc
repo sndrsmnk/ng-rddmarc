@@ -404,7 +404,6 @@ sub findFiles {
             if ($opt_m and $maildir_base = isMaildir($ent)) {
                 dprint("Maildir detected in '$ent'", 3);
                 push @dirs, $maildir_base . '/new/';
-                next;
 
             } else {
                 dprint("Not a Maildir or not using opt_m, treating as normal directory.", 4);
