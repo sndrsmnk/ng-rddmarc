@@ -35,6 +35,12 @@ XML::Simple             | libxml-simple-perl
 DBD::mysql              | libdbd-mysql-perl
 DBI                     | libdbi-perl
 
+And the '<code>gzip</code>' (usually default) and '<code>unzip</code>' (usually
+non-default) packages/binaries. Make sure your version of <code>unzip</code> supports
+the <code>-p</code> option to make unzip <code>extract files to pipe, no messages</code>.
+
+Or adjust the code accordingly to your unzip binary. ;)
+
 
 # Invocation
 ```
