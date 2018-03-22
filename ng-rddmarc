@@ -10,7 +10,12 @@ use Filesys::Notify::Simple;
 use Data::Dumper; $Data::Dumper::Sortkeys = 1;
 use Socket qw(:addrinfo inet_ntop inet_pton AF_INET6 AF_INET);
 use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
+
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
+if (! -f ($conffile))
+{
+	$conffile = "/etc/ng-rddmarc/ng-rddmarc.conf";
+}
 
 
 use vars qw($opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c
