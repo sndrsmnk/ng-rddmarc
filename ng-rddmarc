@@ -12,9 +12,8 @@ use Socket qw(:addrinfo inet_ntop inet_pton AF_INET6 AF_INET);
 use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
 
 my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
-if (! -f ($conffile))
-{
-	$conffile = "/etc/ng-rddmarc/ng-rddmarc.conf";
+if (! -f $conffile) {
+    $conffile = "/etc/ng-rddmarc/ng-rddmarc.conf";
 }
 
 
