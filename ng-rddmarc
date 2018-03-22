@@ -142,7 +142,14 @@ sub processFile {
     $dbh = dbConnect() if (not $$cmd{'p'});
 
     my $xs = XML::Simple->new();
-    my $ref = $xs->XMLin($xml);
+    my $ref = undef;
+    eval {
+        $ref = $xs->XMLin($xml);
+    };
+    if ($@) {
+        dprint("Failed to parse this report:" . join("\n", $@));
+        return;
+    }
     my $from = $$ref{'report_metadata'}{'date_range'}{'begin'};
     my $to = $$ref{'report_metadata'}{'date_range'}{'end'};
     my $org = $$ref{'report_metadata'}{'org_name'};
@@ -224,7 +231,7 @@ sub parseEML {
         my $npart = $ent->parts;
         for my $n (0..($npart-1)) {
             my $part = $ent->parts($n);
-            if ($part->mime_type =~ m#application/gzip#i) {
+            if ($part->mime_type =~ m#application/(?:x\-)?gzip#i) {
                 $zip = $part->bodyhandle;
                 $isgzip = 1;
                 last;
