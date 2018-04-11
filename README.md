@@ -62,11 +62,10 @@ Options:
              move completed to cur/ dir.
     -c       if path is Maildir, also process cur/ on startup
 
-
     -C xx/yy Use file 'xx/yy' as configuration file.
              Not specifying the -C option will try these in order:
-               $HOME/.ng-rddmarc.conf
-               /etc/ng-rddmarc/ng-rddmarc.conf
+                $HOME/.ng-rddmarc.conf
+                /etc/ng-rddmarc/ng-rddmarc.conf
 
   The following 'conf:' lines can be stored in a configuration file:
     -U xxx   database user        conf: $opt_U = "username";
