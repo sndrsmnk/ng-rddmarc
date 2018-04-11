@@ -11,15 +11,10 @@ use Data::Dumper; $Data::Dumper::Sortkeys = 1;
 use Socket qw(:addrinfo inet_ntop inet_pton AF_INET6 AF_INET);
 use Getopt::Std; $main::VERSION = '0.999beta5'; $Getopt::Std::STANDARD_HELP_VERSION = 1;
 
-my $conffile = $ENV{HOME} . '/.ng-rddmarc.conf';
-if (! -f $conffile) {
-    $conffile = "/etc/ng-rddmarc/ng-rddmarc.conf";
-}
 
-
-use vars qw($opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c
+use vars qw($opt_h $opt_s $opt_d $opt_r $opt_w $opt_n $opt_m $opt_c $opt_C
             $opt_U $opt_P $opt_N $opt_H $opt_p);
-getopts('hsd:rwnmcU:P:N:H:p');
+getopts('hsd:rwnmcC:U:P:N:H:p');
 
 
 exit showHelp("help") if $opt_h;
@@ -27,11 +22,21 @@ exit showHelp("sql") if $opt_s;
 exit showHelp("help", "No directory and/or file source(s) specified.") if not scalar(@ARGV);
 
 
+exit dprint("Specified configuration file '$opt_C' is not valid: $!", 0)
+    if (defined $opt_C and not -f $opt_C);
+$opt_C = $ENV{HOME} . '/.ng-rddmarc.conf' if not defined $opt_C;
+$opt_C = "/etc/ng-rddmarc/ng-rddmarc.conf" if not -f $opt_C;
+
+
 # merge config, database-related command line opts always override config.
 my $cmd = { 'U' => $opt_U, 'P' => $opt_P, 'N' => $opt_N, 'H' => $opt_H, 'p' => ($opt_p || 0) };
 $opt_U = $opt_P = $opt_N = $opt_H = $opt_p = undef;
-if (-e $conffile) {
-    open(FD, "<$conffile") or die "Can't read $conffile: $!\n";
+
+
+if (defined $opt_C and -f $opt_C) {
+    dprint("Using configuration file '$opt_C'.", 1);
+
+    open(FD, "<$opt_C") or die "Can't read $opt_C: $!\n";
     my $blob = "";
     { local $/ = undef; $blob = <FD>; close(FD); }
     eval $blob;
@@ -42,25 +47,24 @@ if (-e $conffile) {
 
     foreach my $ll (qw(U P N H p)) {
         if (defined $$cmd{$ll} and defined $$cfg{$ll}) {
-            dprint("[dbconf] configured value for 'opt_$ll' was overridden from commandline.", 10);
+            dprint("[dbconf] The configured value for 'opt_$ll' was overridden from commandline.", 10);
             next;
 
         }
 
         if (not defined $$cmd{$ll} and defined $$cfg{$ll}) {
-            dprint("[dbconf] configured value for 'opt_$ll' was used. not specified on commandline.", 10);
+            dprint("[dbconf] The configured value for 'opt_$ll' was used, as it was not specified on commandline.", 10);
             $$cmd{$ll} = $$cfg{$ll};
-
-        }
-
-        if (not defined $$cmd{$ll} and not defined $$cfg{$ll}) {
-            exit showHelp("help", "No database config value for 'opt_$ll' was found in config or commandline.");
 
         }
 
     }
 
 }
+
+
+exit dprint("Database settings were not found in a configuration file, nor specified on the commandline.", 0)
+    if (not defined $$cmd{'H'} or not defined $$cmd{'N'} or not defined $$cmd{'U'} or not defined $$cmd{'P'});
 
 
 # set-up / test db env
@@ -238,6 +242,7 @@ sub parseEML {
 
             } elsif ($part->mime_type =~ m#application/(?:zip|x-zip-compressed|octet-stream)#i) {
                 $zip = $part->bodyhandle;
+                $isgzip = 1 if $zip->path =~ m#\.gz$#;
                 last;
 
             } else {
@@ -505,7 +510,12 @@ Options:
              move completed to cur/ dir.
     -c       if path is Maildir, also process cur/ on startup
 
-  The following 'conf:' lines can be stored in $HOME/.ng-rddmarc.conf.
+    -C xx/yy Use file 'xx/yy' as configuration file.
+             Not specifying the -C option will try these in order:
+               $HOME/.ng-rddmarc.conf
+               /etc/ng-rddmarc/ng-rddmarc.conf
+
+  The following 'conf:' lines can be stored in a configuration file:
     -U xxx   database user        conf: $opt_U = "username";
     -P xxx   database password    conf: $opt_P = "password";
     -N xxx   database name        conf: $opt_N = "dbname";

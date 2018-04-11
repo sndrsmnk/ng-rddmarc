@@ -62,8 +62,13 @@ Options:
              move completed to cur/ dir.
     -c       if path is Maildir, also process cur/ on startup
 
-  The following 'conf:' lines can be stored in $HOME/.ng-rddmarc.conf or
-  /etc/ng-rddmarc/ng-rddmarc.conf.
+
+    -C xx/yy Use file 'xx/yy' as configuration file.
+             Not specifying the -C option will try these in order:
+               $HOME/.ng-rddmarc.conf
+               /etc/ng-rddmarc/ng-rddmarc.conf
+
+  The following 'conf:' lines can be stored in a configuration file:
     -U xxx   database user        conf: $opt_U = "username";
     -P xxx   database password    conf: $opt_P = "password";
     -N xxx   database name        conf: $opt_N = "dbname";
@@ -76,8 +81,8 @@ Options:
 
 # Configuration
 See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
-config. Place it in <code>$HOME/.ng-rddmarc.conf</code> or
-<code>/etc/ng-rddmarc/ng-rddmarc.conf</code> to configure
+config. Place it somewhere the script expects it (see <code>--help/</code>)
+or use the <code>-C</code> parameter to point to your file and configure
 the database connection. Configuration options specified via command
 line override those specified in the configuration file.<br/>
 A valid database environment is needed for operation.
@@ -182,7 +187,7 @@ CREATE TABLE rptrecord (
 # Examples
 We all love examples.
 
-Considering a valid <code>$HOME/.ng-rddmarc.conf</code> exists...
+Considering a valid configuration file exists...
 
 ```shell
 $ ng-rddmarc -m /home/user/Maildir/.site.dmarc-rua/new
