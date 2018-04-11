@@ -80,7 +80,7 @@ Options:
 
 # Configuration
 See the <code>contrib/dot&#x5f;ng-rddmarc.conf</code> file for example
-config. Place it somewhere the script expects it (see <code>--help/</code>)
+config. Place it somewhere the script expects it (see <code>--help</code>)
 or use the <code>-C</code> parameter to point to your file and configure
 the database connection. Configuration options specified via command
 line override those specified in the configuration file.<br/>
