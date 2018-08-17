@@ -154,7 +154,7 @@ $ ng-rddmarc -s | mysql -u dmarc -p -h databaseserver dmarc
 
 
 ## Database schema:
-It is always safer to use './ng-rddmarc -s' to obtain the most up-to-date SQL-schema.
+It is always safer to use <code>ng-rddmarc -s</code> to obtain the most up-to-date SQL-schema.
 
 ```mysql
 CREATE TABLE report (
