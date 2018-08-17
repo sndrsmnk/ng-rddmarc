@@ -154,6 +154,8 @@ $ ng-rddmarc -s | mysql -u dmarc -p -h databaseserver dmarc
 
 
 ## Database schema:
+It is always safer to use './ng-rddmarc -s' to obtain the most up-to-date SQL-schema.
+
 ```mysql
 CREATE TABLE report (
   serial int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -167,6 +169,7 @@ CREATE TABLE report (
 ) charset=utf8;
 
 CREATE TABLE rptrecord (
+  db_idx int(10) unsigned NOT NULL AUTO_INCREMENT,
   serial int(10) unsigned NOT NULL,
   ip int(10) unsigned,
   ip6 binary(16),
@@ -177,6 +180,7 @@ CREATE TABLE rptrecord (
   dkimresult enum('none','pass','fail','neutral','policy','temperror','permerror'),
   spfdomain varchar(255),
   spfresult enum('none','neutral','pass','fail','softfail','temperror','permerror'),
+  PRIMARY KEY (db_idx),
   KEY serial (serial,ip),
   KEY serial6 (serial,ip6)
 ) charset=utf8;
